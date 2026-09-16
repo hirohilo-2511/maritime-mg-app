@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Maritime MG — デザイントークン
+   B2B 向けの落ち着いたネイビー系パレット。
+   Tailwind v4 の @theme でユーティリティ（bg-navy-800 など）を生成する。
+------------------------------------------------------------------ */
+@theme {
+  --color-navy-50: #f1f5f9;
+  --color-navy-100: #e2e8f0;
+  --color-navy-200: #c7d2df;
+  --color-navy-300: #94a8bd;
+  --color-navy-400: #5f7c99;
+  --color-navy-500: #3d5f7d;
+  --color-navy-600: #2a4a65;
+  --color-navy-700: #1d3a52;
+  --color-navy-800: #142a3d;
+  --color-navy-900: #0d1e2c;
+  --color-navy-950: #07131d;
+
+  --color-sea-400: #38bdf8;
+  --color-sea-500: #0ea5e9;
+  --color-sea-600: #0284c7;
+
+  /*
+    チャート用の2系列パレット。
+    validate_palette.js（白サーフェス / light）で全チェック PASS:
+    CVD ΔE 21.3 / 通常視 ΔE 31.9 / コントラスト 3:1 以上。
+    値を変更する場合はバリデータを再実行すること。
+  */
+  --color-viz-expect: #eb6834;
+  --color-viz-own: #0284c7;
+
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo",
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "Cascadia Mono", "Roboto Mono", monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-navy-50);
+  color: var(--color-navy-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数値（資金・スコアなど）は等幅で桁を揃える */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
