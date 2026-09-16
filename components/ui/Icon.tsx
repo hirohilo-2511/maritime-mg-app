@@ -178,7 +178,8 @@ export function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={className}
+      // shrink-0: flex の中でアイコンが潰れてラベルと重なるのを防ぐ
+      className={`shrink-0 ${className}`}
     >
       {paths[name]}
     </svg>

@@ -4,7 +4,9 @@ type Variant = "primary" | "secondary" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors " +
+  // shrink-0 / whitespace-nowrap: flex 行の中で潰れてクリックできなくなるのを防ぐ
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-semibold " +
+  "whitespace-nowrap transition-colors " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea-500 " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 

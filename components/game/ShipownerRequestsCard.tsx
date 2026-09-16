@@ -80,14 +80,25 @@ export function ShipownerRequestsCard({
                 </div>
               </dl>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold text-navy-400">
-                  重視される要素:
-                </span>
-                {req.priorities.map((p) => (
-                  <Badge key={p}>{p}</Badge>
-                ))}
-                <Button variant="secondary" size="sm" className="ml-auto">
+              {/*
+                チップ群とアクションボタンを別の flex 子にすることで、
+                狭いカラムではボタンが潰れずに次の行へ回り込む。
+              */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-semibold whitespace-nowrap text-navy-400">
+                    重視される要素:
+                  </span>
+                  {req.priorities.map((p) => (
+                    <Badge key={p}>{p}</Badge>
+                  ))}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  className="ml-auto"
+                  aria-label={`${req.owner} への提案を作成`}
+                >
                   提案を作成
                   <Icon name="arrowRight" className="h-3.5 w-3.5" />
                 </Button>
