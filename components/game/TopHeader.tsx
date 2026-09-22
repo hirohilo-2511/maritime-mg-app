@@ -1,20 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { StatPill } from "@/components/game/StatPill";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
-
-/** 決算処理中に表示するスピナー */
-function Spinner() {
-  return (
-    <span
-      aria-hidden
-      className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-    />
-  );
-}
 
 /** 信頼度スコアに応じてバーの色を切り替える */
 function trustBarColor(score: number) {
@@ -31,7 +20,7 @@ export function TopHeader({
   title: string;
   onOpenSidebar?: () => void;
 }) {
-  const { state, isFinalTurn, isAdvancing, advanceTurn } = useGame();
+  const { state } = useGame();
   const { money } = useMoney();
 
   return (
@@ -88,35 +77,6 @@ export function TopHeader({
               />
             </div>
           </StatPill>
-
-          <div className="flex items-center">
-            <Button
-              size="lg"
-              onClick={advanceTurn}
-              disabled={isAdvancing || isFinalTurn}
-              aria-busy={isAdvancing}
-              title={
-                isFinalTurn
-                  ? "最終ターンです"
-                  : `${state.turn}年目を終了して${state.turn + 1}年目に進みます`
-              }
-              className="w-full sm:w-auto"
-            >
-              {isAdvancing ? (
-                <>
-                  <Spinner />
-                  決算処理中…
-                </>
-              ) : isFinalTurn ? (
-                "最終ターン"
-              ) : (
-                <>
-                  ターンを終了
-                  <Icon name="arrowRight" className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
         </div>
       </div>
     </header>

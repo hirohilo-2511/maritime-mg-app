@@ -92,6 +92,8 @@ export function advanceGameState(state: GameState): AdvanceResult {
       ),
       // 配分は次ターンの検討材料として引き継ぐが、確定状態はリセットする
       marketingCommitted: false,
+      // 提案の完了状態は新しいターンの要求に対して再度行う必要がある
+      proposalsCompleted: [],
       marketingHistory: [
         ...state.marketingHistory,
         {

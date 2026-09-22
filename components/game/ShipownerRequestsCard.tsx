@@ -4,6 +4,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { ProposalAction } from "@/components/game/ProposalAction";
 import { useMoney } from "@/components/game/SettingsProvider";
 import type { RequestStatus, ShipownerRequest } from "@/lib/types";
 
@@ -93,15 +94,9 @@ export function ShipownerRequestsCard({
                     <Badge key={p}>{p}</Badge>
                   ))}
                 </div>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  className="ml-auto"
-                  aria-label={`${req.owner} への提案を作成`}
-                >
-                  提案を作成
-                  <Icon name="arrowRight" className="h-3.5 w-3.5" />
-                </Button>
+                <div className="ml-auto">
+                  <ProposalAction request={req} />
+                </div>
               </div>
             </li>
           );

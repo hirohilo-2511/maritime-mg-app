@@ -5,6 +5,7 @@ import { RelationshipMeter } from "@/components/game/RelationshipMeter";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { ProposalAction } from "@/components/game/ProposalAction";
 import { useMoney } from "@/components/game/SettingsProvider";
 import {
   fitAxes,
@@ -180,6 +181,9 @@ export function CustomerDetail({
               {activeRequest.priorities.map((p) => (
                 <Badge key={p}>{p}</Badge>
               ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <ProposalAction request={activeRequest} />
             </div>
           </CardBody>
         </Card>

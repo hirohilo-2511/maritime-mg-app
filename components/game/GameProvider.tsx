@@ -69,6 +69,16 @@ type GameContextValue = {
   hasReport: (reportId: string) => boolean;
   /** ゲームを1年目からやり直す */
   resetGame: () => void;
+  /** 船主要求への提案作成を完了する */
+  completeProposal: (requestId: string) => void;
+  /** その船主要求への提案が完了済みか */
+  isProposalCompleted: (requestId: string) => boolean;
+  /** 今ターンの船主要求のうち、1件以上の提案が完了しているか */
+  hasProposalThisTurn: boolean;
+  /** 顧客への提案を作成できるか（マーケティング予算の確定が前提） */
+  canCreateProposal: boolean;
+  /** ターンを終了できるか（予算配分の確定 → 提案作成の完了、の順を満たしているか） */
+  canEndTurn: boolean;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -198,10 +208,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState(initialGameState);
   }, []);
 
+  const completeProposal = useCallback((requestId: string) => {
+    setState((prev) =>
+      prev.proposalsCompleted.includes(requestId)
+        ? prev
+        : {
+            ...prev,
+            proposalsCompleted: [...prev.proposalsCompleted, requestId],
+          },
+    );
+  }, []);
+
+  const turnData = getTurnData(state.turn);
+  const hasProposalThisTurn = turnData.requests.some((r) =>
+    state.proposalsCompleted.includes(r.id),
+  );
+  const canCreateProposal = state.marketingCommitted;
+  const canEndTurn = canCreateProposal && hasProposalThisTurn;
+
   const value = useMemo<GameContextValue>(
     () => ({
       state,
-      turnData: getTurnData(state.turn),
+      turnData,
       isFinalTurn,
       isAdvancing,
       advanceTurn,
@@ -217,9 +245,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       hasReport: (reportId: string) =>
         state.researchPurchases.some((p) => p.reportId === reportId),
       resetGame,
+      completeProposal,
+      isProposalCompleted: (requestId: string) =>
+        state.proposalsCompleted.includes(requestId),
+      hasProposalThisTurn,
+      canCreateProposal,
+      canEndTurn,
     }),
     [
       state,
+      turnData,
       isFinalTurn,
       isAdvancing,
       advanceTurn,
@@ -232,6 +267,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       commitMarketingPlan,
       purchaseResearchReport,
       resetGame,
+      completeProposal,
+      hasProposalThisTurn,
+      canCreateProposal,
+      canEndTurn,
     ],
   );
 
