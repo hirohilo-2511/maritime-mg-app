@@ -18,6 +18,8 @@ export type GameState = {
   marketingHistory: MarketingRecord[];
   /** 購入済みの市場調査レポート */
   researchPurchases: ResearchPurchase[];
+  /** 今ターン中に提案を完了した船主要求の ID */
+  proposalsCompleted: string[];
   /** セッションに参加しているチーム名 */
   teams: string[];
 };

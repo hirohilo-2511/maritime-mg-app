@@ -2,12 +2,78 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
 import { navItems, secondaryNavItems, type NavItem } from "@/lib/nav";
 import { company } from "@/lib/mock-data";
 import { countUnpurchasedAvailable } from "@/lib/research";
 import type { GameState, TurnData } from "@/lib/types";
+
+/** 決算処理中に表示するスピナー */
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+    />
+  );
+}
+
+/** 「予算配分 → 提案作成 → ターン終了」の進行状況ガイド */
+function TurnSteps({
+  budgetCommitted,
+  proposalDone,
+}: {
+  budgetCommitted: boolean;
+  proposalDone: boolean;
+}) {
+  const steps = [
+    { label: "予算配分", done: budgetCommitted, active: !budgetCommitted },
+    {
+      label: "顧客への提案作成",
+      done: proposalDone,
+      active: budgetCommitted && !proposalDone,
+    },
+    { label: "ターン終了", done: false, active: budgetCommitted && proposalDone },
+  ];
+
+  return (
+    <div className="mx-4 mb-4 rounded-lg border border-white/5 bg-white/5 px-3 py-3">
+      <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+        このターンの進行
+      </p>
+      <ol className="mt-2 space-y-2">
+        {steps.map((step, index) => (
+          <li key={step.label} className="flex items-center gap-2.5">
+            <span
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                step.done
+                  ? "bg-emerald-500 text-white"
+                  : step.active
+                    ? "bg-sea-500 text-white"
+                    : "bg-white/10 text-navy-500"
+              }`}
+            >
+              {step.done ? <Icon name="check" className="h-3 w-3" /> : index + 1}
+            </span>
+            <span
+              className={`text-[12px] ${
+                step.done
+                  ? "text-navy-200"
+                  : step.active
+                    ? "font-semibold text-white"
+                    : "text-navy-500"
+              }`}
+            >
+              {step.label}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 type NavBadge = { text: string; tone: "info" | "warning" };
 
@@ -78,7 +144,15 @@ function NavLink({
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { state, turnData } = useGame();
+  const {
+    state,
+    turnData,
+    isAdvancing,
+    isFinalTurn,
+    advanceTurn,
+    canEndTurn,
+    hasProposalThisTurn,
+  } = useGame();
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
@@ -111,6 +185,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </p>
       </div>
 
+      {/* このターンの進行ガイド */}
+      <TurnSteps
+        budgetCommitted={state.marketingCommitted}
+        proposalDone={hasProposalThisTurn}
+      />
+
       {/* メインナビゲーション */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-navy-500">
@@ -126,6 +206,43 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           />
         ))}
       </nav>
+
+      {/* ターンを終了する（最重要アクション） */}
+      <div className="px-3 pt-2 pb-1">
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={advanceTurn}
+          disabled={isAdvancing || isFinalTurn || !canEndTurn}
+          aria-busy={isAdvancing}
+          title={
+            isFinalTurn
+              ? "最終ターンです"
+              : !canEndTurn
+                ? "予算配分の確定と、提案の作成（1件以上）が必要です"
+                : `${state.turn}年目を終了して${state.turn + 1}年目に進みます`
+          }
+        >
+          {isAdvancing ? (
+            <>
+              <Spinner />
+              決算処理中…
+            </>
+          ) : isFinalTurn ? (
+            "最終ターン"
+          ) : (
+            <>
+              ターンを終了する
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+        {!isFinalTurn && !canEndTurn ? (
+          <p className="mt-2 px-1 text-[11px] leading-relaxed text-navy-400">
+            予算配分の確定 → 顧客への提案作成の順に完了すると終了できます
+          </p>
+        ) : null}
+      </div>
 
       {/* フッター */}
       <div className="space-y-1 border-t border-white/5 px-3 py-3">
