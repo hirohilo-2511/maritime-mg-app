@@ -112,3 +112,45 @@ export function advanceGameState(state: GameState): AdvanceResult {
     advanced: true,
   };
 }
+
+export type FinalizeResult = {
+  /** 最終ターン終了後の状態（gameCompleted: true） */
+  state: GameState;
+  /** 最終ターンで実行されたマーケティング投資の結果 */
+  marketing: MarketingOutcome;
+};
+
+/**
+ * 最終ターンを締めくくり、ゲームを完了状態にする純粋関数。
+ * 次ターンのデータは存在しないため、決算（売上・固定費）は発生させず、
+ * 確定済みのマーケティング予算の効果のみを反映する。
+ */
+export function finalizeGame(state: GameState): FinalizeResult {
+  const executedPlan = state.marketingCommitted
+    ? state.marketingPlan
+    : emptyPlan();
+  const marketing = simulateMarketing(executedPlan);
+
+  return {
+    state: {
+      ...state,
+      availableFunds: state.availableFunds - marketing.spend,
+      trustScore: clampTrust(state.trustScore + marketing.trustDelta),
+      marketingCommitted: false,
+      proposalsCompleted: [],
+      marketingHistory: [
+        ...state.marketingHistory,
+        {
+          turn: state.turn,
+          plan: executedPlan,
+          spend: marketing.spend,
+          leads: marketing.leads,
+          trustDelta: marketing.trustDelta,
+          revenue: 0,
+        },
+      ],
+      gameCompleted: true,
+    },
+    marketing,
+  };
+}

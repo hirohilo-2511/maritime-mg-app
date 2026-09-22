@@ -17,6 +17,7 @@ export const initialGameState: GameState = {
   marketingHistory: [],
   researchPurchases: [],
   proposalsCompleted: [],
+  gameCompleted: false,
   teams: ["Nihon Marine Solutions（自社）", "Team Orion", "Team Delta"],
 };
 

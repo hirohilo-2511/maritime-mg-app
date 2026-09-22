@@ -186,10 +186,21 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       {/* このターンの進行ガイド */}
-      <TurnSteps
-        budgetCommitted={state.marketingCommitted}
-        proposalDone={hasProposalThisTurn}
-      />
+      {state.gameCompleted ? (
+        <div className="mx-4 mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3">
+          <p className="text-[10px] font-semibold tracking-widest text-emerald-300">
+            ゲーム終了
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-navy-200">
+            {state.totalTurns}年間のシミュレーションが完了しました
+          </p>
+        </div>
+      ) : (
+        <TurnSteps
+          budgetCommitted={state.marketingCommitted}
+          proposalDone={hasProposalThisTurn}
+        />
+      )}
 
       {/* メインナビゲーション */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3">
@@ -213,14 +224,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           size="lg"
           className="w-full"
           onClick={advanceTurn}
-          disabled={isAdvancing || isFinalTurn || !canEndTurn}
+          disabled={
+            isAdvancing || (isFinalTurn && !state.gameCompleted && !canEndTurn)
+          }
           aria-busy={isAdvancing}
           title={
-            isFinalTurn
-              ? "最終ターンです"
+            state.gameCompleted
+              ? "5年間の総合フィードバックを表示します"
               : !canEndTurn
                 ? "予算配分の確定と、提案の作成（1件以上）が必要です"
-                : `${state.turn}年目を終了して${state.turn + 1}年目に進みます`
+                : isFinalTurn
+                  ? "最終ターンを終了して総合フィードバックを表示します"
+                  : `${state.turn}年目を終了して${state.turn + 1}年目に進みます`
           }
         >
           {isAdvancing ? (
@@ -228,8 +243,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <Spinner />
               決算処理中…
             </>
+          ) : state.gameCompleted ? (
+            <>
+              結果を見る
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </>
           ) : isFinalTurn ? (
-            "最終ターン"
+            <>
+              最終ターンを終了する
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </>
           ) : (
             <>
               ターンを終了する
@@ -237,7 +260,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </>
           )}
         </Button>
-        {!isFinalTurn && !canEndTurn ? (
+        {!state.gameCompleted && !canEndTurn ? (
           <p className="mt-2 px-1 text-[11px] leading-relaxed text-navy-400">
             予算配分の確定 → 顧客への提案作成の順に完了すると終了できます
           </p>

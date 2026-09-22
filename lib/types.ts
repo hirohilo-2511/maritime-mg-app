@@ -20,6 +20,8 @@ export type GameState = {
   researchPurchases: ResearchPurchase[];
   /** 今ターン中に提案を完了した船主要求の ID */
   proposalsCompleted: string[];
+  /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
+  gameCompleted: boolean;
   /** セッションに参加しているチーム名 */
   teams: string[];
 };

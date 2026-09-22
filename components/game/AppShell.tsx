@@ -22,6 +22,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const current = [...navItems, ...secondaryNavItems].find(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
+  const title = pathname.startsWith("/final-report")
+    ? "総合フィードバック"
+    : (current?.label ?? "ダッシュボード");
 
   return (
     <SettingsProvider>
@@ -47,10 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           {/* メインカラム：サイドバー分の余白を確保し、このカラムだけが縦スクロールする */}
           <div className="flex h-dvh min-w-0 flex-1 flex-col overflow-y-auto lg:pl-64">
-            <TopHeader
-              title={current?.label ?? "ダッシュボード"}
-              onOpenSidebar={() => setMobileOpen(true)}
-            />
+            <TopHeader title={title} onOpenSidebar={() => setMobileOpen(true)} />
             <main className="flex-1 px-4 py-6 lg:px-8">{children}</main>
             <footer className="border-t border-navy-200/70 px-4 py-4 text-center text-[11px] text-navy-400 lg:px-8">
               Maritime MG プロトタイプ — 表示されているデータはすべてダミーです

@@ -10,8 +10,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { getTurnData, initialGameState, turns } from "@/lib/mock-data";
-import { advanceGameState, purchaseResearch } from "@/lib/game";
+import { advanceGameState, finalizeGame, purchaseResearch } from "@/lib/game";
 import type {
   GameState,
   MarketingOutcome,
@@ -93,6 +94,7 @@ export const MAX_TURNS = turns.length;
 export const MAX_TEAMS = 8;
 
 export function GameProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<GameState>(initialGameState);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [turnResult, setTurnResult] = useState<TurnResult | null>(null);
@@ -108,11 +110,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const isFinalTurn = state.turn >= state.totalTurns;
 
   const advanceTurn = useCallback(() => {
-    if (isAdvancing || isFinalTurn) return;
+    if (isAdvancing) return;
+
+    // 最終ターンをすでに終えている場合は、フィードバック画面を開くだけ
+    if (isFinalTurn && state.gameCompleted) {
+      router.push("/final-report");
+      return;
+    }
 
     setIsAdvancing(true);
     // 擬似的な非同期処理。将来的にはサーバー側のターン決算 API に置き換える
     timerRef.current = setTimeout(() => {
+      // 最終ターン：次ターンへは進めないため、ゲームを完了状態にしてフィードバック画面へ
+      if (isFinalTurn) {
+        const { state: next } = finalizeGame(state);
+        setState(next);
+        setIsAdvancing(false);
+        timerRef.current = null;
+        router.push("/final-report");
+        return;
+      }
+
       const {
         state: next,
         settlement,
@@ -142,13 +160,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsAdvancing(false);
       timerRef.current = null;
     }, SETTLEMENT_DELAY_MS);
-  }, [isAdvancing, isFinalTurn, state]);
+  }, [isAdvancing, isFinalTurn, state, router]);
 
   const setTotalTurns = useCallback((totalTurns: number) => {
     setState((prev) => ({
       ...prev,
       // 進行済みのターンより短くはできず、データがある範囲に収める
       totalTurns: Math.max(prev.turn, Math.min(totalTurns, MAX_TURNS)),
+      // 総ターン数が変わるため、完了済みフラグはいったん解除する
+      gameCompleted: false,
     }));
   }, []);
 
@@ -177,6 +197,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({
       ...prev,
       turn: Math.max(1, Math.min(turn, prev.totalTurns)),
+      // ターン移動により最終ターンの完了状態は無効化する
+      gameCompleted: false,
     }));
   }, []);
 
