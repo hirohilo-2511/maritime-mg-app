@@ -1,12 +1,7 @@
-import { getTurnData } from "./mock-data";
 import { emptyPlan, simulateMarketing } from "./marketing";
+import { getModeConfig, getScenarioTurn } from "./modes";
 import { researchSpendInTurn } from "./research";
-import {
-  evaluateSynergy,
-  SYNERGY_LOSE_TRUST_DELTA,
-  SYNERGY_WIN_TRUST_DELTA,
-  type SynergyResult,
-} from "./synergy";
+import { evaluateSynergy, type SynergyResult } from "./synergy";
 import type { DealOutcome, GameState, MarketingOutcome, TurnSettlement } from "./types";
 
 /** 信頼度スコアを 0–100 に収める */
@@ -54,7 +49,7 @@ export function purchaseResearch(
 
 /**
  * ターンを終了して次のターンへ進める純粋関数。
- * - 次ターンのデータに定義された決算（売上・固定費・信頼度）を適用する
+ * - 次ターンのデータに定義された決算（売上・固定費・信頼度）を、難易度の補正込みで適用する
  * - 確定済みのマーケティング予算を支出として差し引き、その効果を加える
  */
 export function advanceGameState(state: GameState): AdvanceResult {
@@ -81,7 +76,7 @@ export function advanceGameState(state: GameState): AdvanceResult {
   }
 
   const toTurn = state.turn + 1;
-  const settlement = getTurnData(toTurn).settlement;
+  const settlement = getScenarioTurn(toTurn, state.mode).settlement;
 
   const revenue = settlement?.revenue ?? 0;
   const expense = settlement?.expense ?? 0;
@@ -168,6 +163,10 @@ export type ProposalResolution = {
   outcome: DealOutcome;
   /** シナジー判定の詳細（結果画面での説明表示に使う） */
   synergy: SynergyResult;
+  /** 受注による入金額（失注時は 0） */
+  revenue: number;
+  /** 信頼度スコアの変動（難易度によって異なる） */
+  trustDelta: number;
 };
 
 /**
@@ -181,13 +180,19 @@ export function resolveProposal(
 ): ProposalResolution | null {
   if (state.proposalsCompleted.includes(requestId)) return null;
 
-  const request = getTurnData(state.turn).requests.find(
+  const request = getScenarioTurn(state.turn, state.mode).requests.find(
     (r) => r.id === requestId,
   );
   if (!request) return null;
 
-  const synergy = evaluateSynergy(focusPriority, state.marketingPlan);
+  const cfg = getModeConfig(state.mode);
+  const synergy = evaluateSynergy(
+    focusPriority,
+    state.marketingPlan,
+    cfg.minSynergySpend,
+  );
   const outcome: DealOutcome = synergy.won ? "won" : "lost";
+  const trustDelta = synergy.won ? cfg.winTrustDelta : cfg.loseTrustDelta;
 
   return {
     state: {
@@ -196,12 +201,11 @@ export function resolveProposal(
       dealOutcomes: { ...state.dealOutcomes, [requestId]: outcome },
       availableFunds:
         state.availableFunds + (synergy.won ? request.budget : 0),
-      trustScore: clampTrust(
-        state.trustScore +
-          (synergy.won ? SYNERGY_WIN_TRUST_DELTA : SYNERGY_LOSE_TRUST_DELTA),
-      ),
+      trustScore: clampTrust(state.trustScore + trustDelta),
     },
     outcome,
     synergy,
+    revenue: synergy.won ? request.budget : 0,
+    trustDelta,
   };
 }

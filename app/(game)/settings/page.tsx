@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { JPY_PER_USD } from "@/lib/format";
-import { company, initialGameState } from "@/lib/mock-data";
+import { company } from "@/lib/mock-data";
 import { researchReports } from "@/lib/research";
 
 /** 設定項目 1 行 */
@@ -85,6 +85,7 @@ function Segmented<T extends string | number>({
 export default function SettingsPage() {
   const {
     state,
+    modeConfig,
     isFinalTurn,
     setTotalTurns,
     addTeam,
@@ -331,8 +332,9 @@ export default function SettingsPage() {
               ゲームをリセット
             </p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-navy-400">
-              1年目の初期状態（資金 {money(initialGameState.availableFunds)} /
-              信頼度 {initialGameState.trustScore}
+              {modeConfig.label}の1年目の初期状態（資金{" "}
+              {money(modeConfig.initialFunds)} / 信頼度{" "}
+              {modeConfig.initialTrust}
               ）に戻します。購入済みレポート、マーケティング履歴、参加チームの変更もすべて破棄されます。
             </p>
 

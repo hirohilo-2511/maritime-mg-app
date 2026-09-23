@@ -23,7 +23,7 @@ export function ProposalModal({
   request: ShipownerRequest;
   onClose: () => void;
 }) {
-  const { completeProposal } = useGame();
+  const { completeProposal, modeConfig } = useGame();
   const { money, moneySigned } = useMoney();
   const [focus, setFocus] = useState<string>(request.priorities[0] ?? "");
   const [result, setResult] = useState<ProposalResolution | null>(null);
@@ -45,7 +45,7 @@ export function ProposalModal({
   };
 
   if (result) {
-    const { outcome, synergy } = result;
+    const { outcome, synergy, trustDelta } = result;
     const won = outcome === "won";
     const axisLabel =
       fitAxes.find((a) => a.id === synergy.axis)?.label ?? synergy.axis;
@@ -76,7 +76,11 @@ export function ProposalModal({
               className="mx-auto h-9 w-9"
             />
             <h2 id="proposal-result-title" className="mt-2 text-xl font-bold">
-              {won ? "シナジー的中！即決受注" : "ミスマッチ：的外れな提案"}
+              {won
+                ? "シナジー的中！即決受注"
+                : synergy.reason === "underinvested"
+                  ? "投資不足：提案の裏付けが弱い"
+                  : "ミスマッチ：的外れな提案"}
             </h2>
             <p className="mt-1 text-sm text-white/90">{request.owner}</p>
           </div>
@@ -91,6 +95,22 @@ export function ProposalModal({
                 </span>
                 への投資が刺さります。今ターン最も投資したチャネルと完全に一致したため、
                 {request.owner} は即座に発注を決定しました。
+              </p>
+            ) : synergy.reason === "underinvested" ? (
+              <p className="text-[13px] leading-relaxed text-navy-700">
+                訴求ポイント「{focus}」（{axisLabel}）と
+                <span className="font-bold text-navy-900">
+                  {requiredChannelName}
+                </span>
+                への投資の狙いは合っていましたが、投資額
+                <span className="tabular font-bold text-navy-900">
+                  {money(synergy.requiredChannelSpend)}
+                </span>
+                は{modeConfig.label}の受注条件
+                <span className="tabular font-bold text-navy-900">
+                  {money(synergy.minSpend)}
+                </span>
+                に届きませんでした。本気度の伝わらない提案では、厳しい船主は動きません。
               </p>
             ) : (
               <p className="text-[13px] leading-relaxed text-navy-700">
@@ -129,7 +149,7 @@ export function ProposalModal({
                     won ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
-                  {won ? "+8" : "-8"}
+                  {trustDelta > 0 ? `+${trustDelta}` : trustDelta}
                 </p>
               </div>
             </div>
@@ -187,6 +207,15 @@ export function ProposalModal({
             重視される要素のうち、最も強く訴求するポイントを選んでください。
             今ターン最も投資したチャネルとの相性で受注可否が決まります。
           </p>
+          {modeConfig.minSynergySpend > 0 && (
+            <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+              <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {modeConfig.label}：訴求ポイントに対応するチャネルへの投資が
+              {money(modeConfig.minSynergySpend)}
+              未満の場合、チャネルが一致していても失注します（失注時の信頼度{" "}
+              {modeConfig.loseTrustDelta}）。
+            </p>
+          )}
           <div className="mt-2.5 space-y-2">
             {request.priorities.map((p) => (
               <label

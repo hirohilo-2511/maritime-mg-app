@@ -1,7 +1,12 @@
 /** ゲーム内で使用する型定義（バックエンド実装前の暫定スキーマ） */
 
+/** 難易度（シナリオ）。導入編 = intro / 実践編 = advanced */
+export type GameMode = "intro" | "advanced";
+
 /** ヘッダーに表示するゲームの進行状況 */
 export type GameState = {
+  /** 選択中の難易度（開始時に選択し、プレイ中は変わらない） */
+  mode: GameMode;
   /** プレイヤー名（ログイン画面で入力） */
   playerName: string;
   /** 現在のターン（年） */

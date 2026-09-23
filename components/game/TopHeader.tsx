@@ -20,7 +20,7 @@ export function TopHeader({
   title: string;
   onOpenSidebar?: () => void;
 }) {
-  const { state } = useGame();
+  const { state, modeConfig } = useGame();
   const { money } = useMoney();
 
   return (
@@ -37,8 +37,17 @@ export function TopHeader({
             <Icon name="menu" className="h-5 w-5" />
           </button>
           <div>
-            <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+            <p className="flex items-center gap-2 text-[10px] font-semibold tracking-widest text-navy-400">
               MANAGEMENT GAME
+              <span
+                className={`rounded px-1.5 py-0.5 text-[9px] tracking-wider ${
+                  state.mode === "advanced"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-sea-500/10 text-sea-600"
+                }`}
+              >
+                {modeConfig.label}
+              </span>
             </p>
             <h1 className="text-lg font-bold text-navy-900">{title}</h1>
           </div>

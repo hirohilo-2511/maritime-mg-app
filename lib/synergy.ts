@@ -54,11 +54,6 @@ export const axisChannel: Record<FitAxisId, MarketingChannelId> = {
   delivery: "digital",
 };
 
-/** 受注時に企業の信頼度スコアへ与える影響 */
-export const SYNERGY_WIN_TRUST_DELTA = 8;
-/** 失注（ミスマッチ）時に企業の信頼度スコアへ与える影響 */
-export const SYNERGY_LOSE_TRUST_DELTA = -8;
-
 /** 配分の中でもっとも投資額が大きいチャネルを返す（全チャネル 0 の場合は null） */
 export function topInvestedChannel(plan: MarketingPlan): MarketingChannelId | null {
   let best: MarketingChannelId | null = null;
@@ -82,25 +77,48 @@ export type SynergyResult = {
   topChannel: MarketingChannelId | null;
   /** ドンピシャなチャネルへの投資額 */
   requiredChannelSpend: number;
+  /** 受注に必要な対応チャネルへの最低投資額（難易度で変わる。0 = 条件なし） */
+  minSpend: number;
+  /**
+   * 判定理由。
+   * - match：チャネルが一致し、投資額も条件を満たした
+   * - mismatch：最大投資チャネルが一致しない
+   * - underinvested：チャネルは一致したが、投資額が最低条件に届かない（実践編）
+   */
+  reason: "match" | "mismatch" | "underinvested";
   /** 受注できたか */
   won: boolean;
 };
 
-/** 提案内容（訴求ポイント）と今ターンの投資配分から、シナジーの結果を判定する */
+/**
+ * 提案内容（訴求ポイント）と今ターンの投資配分から、シナジーの結果を判定する。
+ * minSpend を指定すると、チャネルが一致していても対応チャネルへの投資額が
+ * それに満たない場合は失注になる（実践編の厳しい提案条件）。
+ */
 export function evaluateSynergy(
   focusPriority: string,
   plan: MarketingPlan,
+  minSpend = 0,
 ): SynergyResult {
   const axis = axisForPriority(focusPriority);
   const requiredChannel = axisChannel[axis];
   const topChannel = topInvestedChannel(plan);
   const requiredChannelSpend = plan[requiredChannel];
 
+  const matched = topChannel !== null && topChannel === requiredChannel;
+  const reason = !matched
+    ? "mismatch"
+    : requiredChannelSpend < minSpend
+      ? "underinvested"
+      : "match";
+
   return {
     axis,
     requiredChannel,
     topChannel,
     requiredChannelSpend,
-    won: topChannel !== null && topChannel === requiredChannel,
+    minSpend,
+    reason,
+    won: reason === "match",
   };
 }

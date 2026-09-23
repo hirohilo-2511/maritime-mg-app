@@ -17,6 +17,7 @@ export const company = {
 
 /** ゲーム開始時（1年目）の状態 */
 export const initialGameState: GameState = {
+  mode: "intro",
   playerName: company.playerName,
   turn: 1,
   totalTurns: 5,

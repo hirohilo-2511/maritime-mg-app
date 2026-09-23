@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
+import { gameModes, modeConfigs } from "@/lib/modes";
+import type { GameMode } from "@/lib/types";
 
 const inputClass =
   "w-full rounded-lg border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 " +
@@ -13,8 +15,9 @@ const inputClass =
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setPlayerName } = useGame();
+  const { startGame } = useGame();
   const [playerName, setPlayerNameInput] = useState("");
+  const [mode, setMode] = useState<GameMode>("intro");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -22,11 +25,12 @@ export default function LoginPage() {
   /**
    * モック認証。バックエンド未実装のため、入力値の検証のみ行い
    * 擬似的な遅延のあとダッシュボードへ遷移する。
+   * 選択したシナリオ（難易度）で新しいゲームを開始する。
    */
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setPlayerName(playerName);
+    startGame(mode, playerName);
     setTimeout(() => router.push("/dashboard"), 400);
   }
 
@@ -173,6 +177,59 @@ export default function LoginPage() {
                 className={inputClass}
               />
             </div>
+
+            <fieldset>
+              <legend className="mb-1.5 block text-xs font-semibold text-navy-700">
+                シナリオ（難易度）
+              </legend>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {gameModes.map((id) => {
+                  const cfg = modeConfigs[id];
+                  const selected = mode === id;
+                  return (
+                    <label
+                      key={id}
+                      className={`flex cursor-pointer flex-col rounded-lg border px-3.5 py-3 transition-colors ${
+                        selected
+                          ? "border-navy-800 bg-navy-50 ring-1 ring-navy-800"
+                          : "border-navy-200 bg-white hover:bg-navy-50/60"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="mode"
+                          value={id}
+                          checked={selected}
+                          onChange={() => setMode(id)}
+                          className="h-4 w-4 accent-navy-800"
+                        />
+                        <span className="text-sm font-bold text-navy-900">
+                          {cfg.label}
+                        </span>
+                        <span className="ml-auto text-[9px] font-semibold tracking-widest text-navy-400">
+                          {cfg.tag}
+                        </span>
+                      </span>
+                      <span className="mt-1.5 text-[11px] leading-relaxed text-navy-500">
+                        {cfg.description}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <ul className="mt-2 space-y-1 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-navy-600">
+                {modeConfigs[mode].highlights.map((h) => (
+                  <li key={h} className="flex items-start gap-1.5">
+                    <Icon
+                      name="check"
+                      className="mt-0.5 h-3 w-3 shrink-0 text-sea-600"
+                    />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
 
             <label className="flex items-center gap-2 text-xs text-navy-500">
               <input

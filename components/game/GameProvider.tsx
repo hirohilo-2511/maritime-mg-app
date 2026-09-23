@@ -11,7 +11,13 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { getTurnData, initialGameState, turns } from "@/lib/mock-data";
+import { initialGameState, turns } from "@/lib/mock-data";
+import {
+  createInitialGameState,
+  getModeConfig,
+  getScenarioTurn,
+  type ModeConfig,
+} from "@/lib/modes";
 import {
   advanceGameState,
   finalizeGame,
@@ -21,6 +27,7 @@ import {
 } from "@/lib/game";
 import type {
   DealOutcome,
+  GameMode,
   GameState,
   MarketingOutcome,
   MarketingPlan,
@@ -47,7 +54,9 @@ export type TurnResult = {
 
 type GameContextValue = {
   state: GameState;
-  /** 現在のターンのニュース・船主要求 */
+  /** 選択中の難易度の設定 */
+  modeConfig: ModeConfig;
+  /** 現在のターンのニュース・船主要求（難易度の補正込み） */
   turnData: TurnData;
   /** 最終ターンに到達しているか */
   isFinalTurn: boolean;
@@ -75,8 +84,13 @@ type GameContextValue = {
   purchaseResearchReport: (reportId: string, cost: number) => void;
   /** レポートを購入済みか */
   hasReport: (reportId: string) => boolean;
-  /** ゲームを1年目からやり直す */
+  /** 同じ難易度のまま、ゲームを1年目からやり直す（プレイヤー名は引き継ぐ） */
   resetGame: () => void;
+  /**
+   * 難易度を選んで新しいゲームを開始する（ログイン画面・リザルト画面から）。
+   * プレイヤー名を省略した場合は現在の名前を引き継ぐ。
+   */
+  startGame: (mode: GameMode, playerName?: string) => void;
   /** プレイヤー名を設定する（ログイン画面で入力） */
   setPlayerName: (name: string) => void;
   /**
@@ -239,13 +253,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const resetGame = useCallback(() => {
+  const startGame = useCallback((mode: GameMode, playerName?: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
     setIsAdvancing(false);
     setTurnResult(null);
-    setState(initialGameState);
+    setState((prev) =>
+      createInitialGameState(mode, {
+        playerName: playerName?.trim() || prev.playerName,
+      }),
+    );
   }, []);
+
+  const resetGame = useCallback(
+    () => startGame(state.mode),
+    [startGame, state.mode],
+  );
 
   const setPlayerName = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -262,7 +285,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [state],
   );
 
-  const turnData = getTurnData(state.turn);
+  const modeConfig = getModeConfig(state.mode);
+  const turnData = useMemo(
+    () => getScenarioTurn(state.turn, state.mode),
+    [state.turn, state.mode],
+  );
   const hasProposalThisTurn = turnData.requests.some((r) =>
     state.proposalsCompleted.includes(r.id),
   );
@@ -272,6 +299,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const value = useMemo<GameContextValue>(
     () => ({
       state,
+      modeConfig,
       turnData,
       isFinalTurn,
       isAdvancing,
@@ -288,6 +316,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       hasReport: (reportId: string) =>
         state.researchPurchases.some((p) => p.reportId === reportId),
       resetGame,
+      startGame,
       setPlayerName,
       completeProposal,
       isProposalCompleted: (requestId: string) =>
@@ -299,6 +328,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      modeConfig,
       turnData,
       isFinalTurn,
       isAdvancing,
@@ -312,6 +342,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       commitMarketingPlan,
       purchaseResearchReport,
       resetGame,
+      startGame,
       setPlayerName,
       completeProposal,
       hasProposalThisTurn,

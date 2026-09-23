@@ -1,6 +1,7 @@
-import { turns, initialGameState } from "./mock-data";
+import { buildB2bMetrics, type B2bMetrics } from "./b2bMetrics";
 import { marketingChannels, type MarketingChannel } from "./marketing";
-import type { GameState, MarketingChannelId } from "./types";
+import { getModeConfig, getScenarioTurn } from "./modes";
+import type { GameMode, GameState, MarketingChannelId } from "./types";
 
 export type Grade = "S" | "A" | "B" | "C";
 
@@ -12,11 +13,14 @@ export type ChannelBreakdown = {
 };
 
 export type FinalReportData = {
+  mode: GameMode;
   grade: Grade;
   gradeTagline: string;
   /** なぜその評価になったのか（財務と信頼度のバランス）を説明する詳細テキスト */
   evaluationReason: string;
   finalFunds: number;
+  /** 開始時の資金（難易度によって異なる） */
+  initialFunds: number;
   fundsDelta: number;
   finalTrust: number;
   totalLeads: number;
@@ -26,25 +30,46 @@ export type FinalReportData = {
   styleCommentary: string;
   ifStory: string;
   businessHint: string;
+  /** 実践編のみ：ROI・CPA などの B2B マーケティング指標 */
+  b2bMetrics: B2bMetrics | null;
 };
 
 /**
- * 総合評価（S/A/B/C）を判定する。
- * プロトタイプ用の簡易ロジック：資金の伸び（初期資金比）と信頼度スコアを
- * 1つの指標に合成し、しきい値で 4 段階に分ける。
+ * S 評価の条件。資金と信頼度を合成した指標ではなく、両方を個別に満たす必要がある。
+ * （合成指標だと資金が大きく伸びるだけで S に届いてしまうため）
  */
-function gradeFor(finalFunds: number, finalTrust: number): Grade {
-  const fundsScore = (finalFunds / initialGameState.availableFunds) * 20;
-  const composite = fundsScore + finalTrust;
+export const S_RANK_MIN_TRUST = 95;
+export const S_RANK_MIN_FUNDS_RATIO = 1.3;
 
-  if (composite >= 170) return "S";
+/** S 評価の条件を満たしているか */
+function meetsSRank(fundsRatio: number, finalTrust: number): boolean {
+  return (
+    finalTrust >= S_RANK_MIN_TRUST && fundsRatio >= S_RANK_MIN_FUNDS_RATIO
+  );
+}
+
+/**
+ * 総合評価（S/A/B/C）を判定する。
+ * - S：信頼度 95 以上 かつ 最終資金が初期資金の 130% 以上（両方必須）
+ * - A〜C：資金の伸び（初期資金比）と信頼度スコアを合成した指標のしきい値で判定
+ * 合成指標がどれだけ高くても、S の条件を満たさなければ A に留まる。
+ * 受注額がそのまま資金に入るため資金は数十倍まで伸びうる。資金だけで
+ * 信頼度の低さを補えないよう、合成に使う資金比は FUNDS_RATIO_CAP で頭打ちにする
+ * （A には信頼度 80 以上、B には 40 以上が実質的に必要になる）。
+ */
+const FUNDS_RATIO_CAP = 3;
+
+function gradeFor(fundsRatio: number, finalTrust: number): Grade {
+  if (meetsSRank(fundsRatio, finalTrust)) return "S";
+
+  const composite = Math.min(fundsRatio, FUNDS_RATIO_CAP) * 20 + finalTrust;
   if (composite >= 140) return "A";
   if (composite >= 100) return "B";
   return "C";
 }
 
 const gradeTaglines: Record<Grade, string> = {
-  S: "業界内でも突出した経営判断でした。市場の変化を先読みし、投資と受注確度を高い水準で両立させています。",
+  S: "業界内でも突出した経営判断でした。顧客からほぼ全幅の信頼を得たうえで、財務も大きく伸ばしています。",
   A: "堅実かつ機動力のある経営でした。資金・信頼度ともにバランス良く伸ばせています。",
   B: "平均的な経営判断でした。基礎は固められていますが、投資判断でさらに伸ばせる余地があります。",
   C: "厳しい5年間でした。資金・信頼度のいずれか、あるいは両方が伸び悩む結果になっています。",
@@ -79,10 +104,9 @@ const isStrong = (tier: PerformanceTier) =>
  */
 function buildEvaluationReason(
   grade: Grade,
-  finalFunds: number,
+  ratio: number,
   finalTrust: number,
 ): string {
-  const ratio = finalFunds / initialGameState.availableFunds;
   const fundsPct = Math.round(ratio * 100);
   const fTier = fundsTier(ratio);
   const tTier = trustTier(finalTrust);
@@ -111,7 +135,35 @@ function buildEvaluationReason(
     verdict = `財務・信頼度のいずれも伸び悩んだ結果、総合評価は${grade}となりました。`;
   }
 
-  return `${trustPhrase[tTier]}。${fundsPhrase[fTier]}。${verdict}`;
+  return `${trustPhrase[tTier]}。${fundsPhrase[fTier]}。${verdict}${sRankNote(
+    grade,
+    ratio,
+    finalTrust,
+  )}`;
+}
+
+/** S 評価に届かなかった場合に、何が足りなかったのかを具体的に示す */
+function sRankNote(grade: Grade, ratio: number, finalTrust: number): string {
+  if (grade === "S") {
+    return `S評価の条件（信頼度${S_RANK_MIN_TRUST}以上 かつ 最終資金が初期資金比${Math.round(
+      S_RANK_MIN_FUNDS_RATIO * 100,
+    )}%以上）をどちらも満たしました。`;
+  }
+
+  const gaps: string[] = [];
+  if (finalTrust < S_RANK_MIN_TRUST) {
+    gaps.push(`信頼度があと${S_RANK_MIN_TRUST - finalTrust}点`);
+  }
+  if (ratio < S_RANK_MIN_FUNDS_RATIO) {
+    gaps.push(
+      `最終資金があと初期資金比${Math.ceil(
+        (S_RANK_MIN_FUNDS_RATIO - ratio) * 100,
+      )}ポイント`,
+    );
+  }
+  return `なお、S評価には信頼度${S_RANK_MIN_TRUST}以上 かつ 最終資金が初期資金比${Math.round(
+    S_RANK_MIN_FUNDS_RATIO * 100,
+  )}%以上の両方が必要です（今回は${gaps.join("、")}不足）。`;
 }
 
 const styleCopy: Record<
@@ -183,7 +235,7 @@ function buildIfStory(state: GameState): string {
   const weakest = [...history].sort(
     (a, b) => a.plan.seminar - b.plan.seminar,
   )[0];
-  const turnData = turns.find((t) => t.turn === weakest.turn);
+  const turnData = getScenarioTurn(weakest.turn, state.mode);
   const bigRequest = turnData?.requests
     .filter((r) => r.priorities.length > 0)
     .sort((a, b) => b.budget - a.budget)[0];
@@ -239,19 +291,23 @@ export function buildFinalReport(state: GameState): FinalReportData {
     c.share = totalChannelSpend > 0 ? c.amount / totalChannelSpend : 0;
   }
 
-  const grade = gradeFor(state.availableFunds, state.trustScore);
+  const cfg = getModeConfig(state.mode);
+  const fundsRatio = state.availableFunds / cfg.initialFunds;
+  const grade = gradeFor(fundsRatio, state.trustScore);
   const style = buildStyle(channelBreakdown, state.trustScore);
 
   return {
+    mode: state.mode,
     grade,
     gradeTagline: gradeTaglines[grade],
     evaluationReason: buildEvaluationReason(
       grade,
-      state.availableFunds,
+      fundsRatio,
       state.trustScore,
     ),
     finalFunds: state.availableFunds,
-    fundsDelta: state.availableFunds - initialGameState.availableFunds,
+    initialFunds: cfg.initialFunds,
+    fundsDelta: state.availableFunds - cfg.initialFunds,
     finalTrust: state.trustScore,
     totalLeads,
     totalMarketingSpend,
@@ -260,5 +316,6 @@ export function buildFinalReport(state: GameState): FinalReportData {
     styleCommentary: style.commentary,
     ifStory: buildIfStory(state),
     businessHint: buildBusinessHint(state),
+    b2bMetrics: cfg.showAdvancedMetrics ? buildB2bMetrics(state) : null,
   };
 }

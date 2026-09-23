@@ -9,8 +9,15 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
+import {
+  ASSUMED_GROSS_MARGIN,
+  metricLessons,
+  type B2bMetrics,
+} from "@/lib/b2bMetrics";
 import { buildFinalReport, type Grade } from "@/lib/finalReport";
 import { company } from "@/lib/mock-data";
+import { modeConfigs } from "@/lib/modes";
+import type { GameMode } from "@/lib/types";
 
 const gradeTone: Record<Grade, string> = {
   S: "bg-amber-400 text-navy-950",
@@ -21,16 +28,17 @@ const gradeTone: Record<Grade, string> = {
 
 /** 最終ターン終了後に表示する総合フィードバック（リザルト）ダッシュボード */
 export function FinalReport() {
-  const { state, resetGame } = useGame();
+  const { state, modeConfig, startGame } = useGame();
   const { money, moneySigned } = useMoney();
   const router = useRouter();
 
   const report = useMemo(() => buildFinalReport(state), [state]);
 
-  const handleReplay = () => {
-    resetGame();
+  const handleReplay = (mode: GameMode) => {
+    startGame(mode);
     router.push("/dashboard");
   };
+  const otherMode: GameMode = state.mode === "intro" ? "advanced" : "intro";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -38,7 +46,8 @@ export function FinalReport() {
       <Card>
         <div className="bg-navy-900 px-6 py-8 text-white sm:px-8">
           <p className="text-[10px] font-semibold tracking-widest text-navy-400">
-            FINAL REPORT — {state.totalTurns}年間のシミュレーション終了
+            FINAL REPORT — {modeConfig.label} · {state.totalTurns}
+            年間のシミュレーション終了
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-5">
             <span
@@ -155,6 +164,29 @@ export function FinalReport() {
         </CardBody>
       </Card>
 
+      {report.b2bMetrics ? (
+        <B2bMetricsSection metrics={report.b2bMetrics} />
+      ) : (
+        <Card>
+          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[13px] leading-relaxed text-navy-600">
+              <span className="font-bold text-navy-900">
+                {modeConfigs.advanced.label}
+              </span>
+              では顧客予算や受注条件が厳しくなり、最終レポートで ROI・CPA
+              などの B2B マーケティング指標による投資対効果の評価が加わります。
+            </p>
+            <Button
+              variant="secondary"
+              className="shrink-0"
+              onClick={() => handleReplay("advanced")}
+            >
+              {modeConfigs.advanced.label}に挑戦する
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* If ストーリー */}
       <Card>
         <CardHeader
@@ -191,11 +223,225 @@ export function FinalReport() {
             ダッシュボードに戻る
           </Button>
         </Link>
-        <Button size="lg" className="w-full sm:w-auto" onClick={handleReplay}>
-          もう一度プレイする
+        <Button
+          variant="secondary"
+          size="lg"
+          className="w-full sm:w-auto"
+          onClick={() => handleReplay(otherMode)}
+        >
+          {modeConfigs[otherMode].label}でプレイする
+        </Button>
+        <Button
+          size="lg"
+          className="w-full sm:w-auto"
+          onClick={() => handleReplay(state.mode)}
+        >
+          {modeConfig.label}をもう一度プレイする
           <Icon name="arrowRight" className="h-4 w-4" />
         </Button>
       </div>
     </div>
+  );
+}
+
+const formatPct = (v: number | null, signed = false) =>
+  v === null ? "—" : `${signed && v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
+
+/** 実践編のみ：ROI・CPA などの B2B 指標と、その意味を学ぶ解説 */
+function B2bMetricsSection({ metrics }: { metrics: B2bMetrics }) {
+  const { money } = useMoney();
+  const moneyOrDash = (v: number | null) => (v === null ? "—" : money(v));
+
+  const tiles: {
+    label: string;
+    value: string;
+    formula: string;
+    tone?: "good" | "bad";
+  }[] = [
+    {
+      label: "ROI（投資利益率）",
+      value: formatPct(metrics.roi, true),
+      formula: `（粗利 − 投資）÷ 投資　※粗利率 ${Math.round(
+        ASSUMED_GROSS_MARGIN * 100,
+      )}%`,
+      tone:
+        metrics.roi === null ? undefined : metrics.roi >= 0 ? "good" : "bad",
+    },
+    {
+      label: "ROAS（投資対売上）",
+      value: metrics.roas === null ? "—" : `${metrics.roas.toFixed(1)}倍`,
+      formula: "受注額 ÷ 投資",
+    },
+    {
+      label: "CPA（受注獲得単価）",
+      value: moneyOrDash(metrics.cpa),
+      formula: "投資 ÷ 受注件数",
+    },
+    {
+      label: "CPL（引き合い獲得単価）",
+      value: moneyOrDash(metrics.cpl),
+      formula: "施策費 ÷ 見込み引き合い件数",
+    },
+    {
+      label: "受注率",
+      value: formatPct(metrics.winRate),
+      formula: `受注 ${metrics.dealsWon}件 ÷ 提案 ${metrics.proposals}件`,
+    },
+    {
+      label: "平均受注単価",
+      value: moneyOrDash(metrics.avgDealSize),
+      formula: "受注額 ÷ 受注件数",
+    },
+  ];
+
+  const roiTone = (roi: number | null) =>
+    roi === null
+      ? "text-navy-400"
+      : roi >= 0
+        ? "text-emerald-600"
+        : "text-rose-600";
+
+  return (
+    <Card>
+      <CardHeader
+        title="B2B マーケティング指標"
+        description="5年間の投資対効果を、実務で使われる KPI で振り返る"
+        icon={<Icon name="trendUp" className="h-5 w-5" />}
+        action={<Badge tone="warning">実践編</Badge>}
+      />
+      <CardBody>
+        <p className="text-[12px] leading-relaxed text-navy-500">
+          投資合計{" "}
+          <span className="tabular font-semibold text-navy-800">
+            {money(metrics.totalInvestment)}
+          </span>
+          （施策費 {money(metrics.marketingSpend)} + 市場調査費{" "}
+          {money(metrics.researchSpend)}）／ 受注額合計{" "}
+          <span className="tabular font-semibold text-navy-800">
+            {money(metrics.wonRevenue)}
+          </span>
+          （想定粗利 {money(metrics.grossProfit)}）
+        </p>
+
+        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {tiles.map((t) => (
+            <div
+              key={t.label}
+              className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3.5 py-3"
+            >
+              <p className="text-[10px] font-semibold tracking-wider text-navy-400">
+                {t.label}
+              </p>
+              <p
+                className={`tabular mt-1 text-lg leading-none font-bold ${
+                  t.tone === "good"
+                    ? "text-emerald-600"
+                    : t.tone === "bad"
+                      ? "text-rose-600"
+                      : "text-navy-900"
+                }`}
+              >
+                {t.value}
+              </p>
+              <p className="mt-1.5 text-[10px] leading-snug text-navy-400">
+                {t.formula}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* 年度別の投資対効果 */}
+        {metrics.byTurn.length > 0 && (
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-navy-100 text-[10px] tracking-wider text-navy-400">
+                  <th className="py-2 pr-3 font-semibold">年度</th>
+                  <th className="py-2 pr-3 text-right font-semibold">投資</th>
+                  <th className="py-2 pr-3 text-right font-semibold">
+                    引き合い
+                  </th>
+                  <th className="py-2 pr-3 text-right font-semibold">
+                    受注 / 提案
+                  </th>
+                  <th className="py-2 pr-3 text-right font-semibold">受注額</th>
+                  <th className="py-2 text-right font-semibold">ROI</th>
+                </tr>
+              </thead>
+              <tbody className="tabular text-navy-700">
+                {metrics.byTurn.map((t) => (
+                  <tr key={t.turn} className="border-b border-navy-100/70">
+                    <td className="py-2 pr-3 font-medium">{t.turn}年目</td>
+                    <td className="py-2 pr-3 text-right">
+                      {money(t.investment)}
+                    </td>
+                    <td className="py-2 pr-3 text-right">{t.leads}件</td>
+                    <td className="py-2 pr-3 text-right">
+                      {t.dealsWon} / {t.proposals}
+                    </td>
+                    <td className="py-2 pr-3 text-right">
+                      {money(t.wonRevenue)}
+                    </td>
+                    <td
+                      className={`py-2 text-right font-semibold ${roiTone(t.roi)}`}
+                    >
+                      {formatPct(t.roi, true)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* プレイ結果に応じた講評 */}
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+            あなたの投資判断への講評
+          </p>
+          <ul className="mt-2 space-y-2">
+            {metrics.insights.map((text) => (
+              <li
+                key={text}
+                className="flex items-start gap-2.5 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-navy-700"
+              >
+                <Icon
+                  name="alert"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-sea-600"
+                />
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 教育用の解説 */}
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+            解説：なぜ ROI などの指標で評価するのか
+          </p>
+          <div className="mt-2 space-y-2">
+            {metricLessons.map((lesson, i) => (
+              <details
+                key={lesson.title}
+                open={i === 0}
+                className="group rounded-lg border border-navy-200/70 bg-white"
+              >
+                <summary className="flex list-none items-center justify-between gap-2 px-3.5 py-2.5 text-[13px] font-semibold text-navy-800 [&::-webkit-details-marker]:hidden">
+                  {lesson.title}
+                  <Icon
+                    name="arrowRight"
+                    className="h-3.5 w-3.5 shrink-0 text-navy-400 transition-transform group-open:rotate-90"
+                  />
+                </summary>
+                <p className="border-t border-navy-100 px-3.5 py-3 text-[12px] leading-relaxed text-navy-600">
+                  {lesson.body}
+                </p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
