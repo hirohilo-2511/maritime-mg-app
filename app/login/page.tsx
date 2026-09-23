@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { useGame } from "@/components/game/GameProvider";
 
 const inputClass =
   "w-full rounded-lg border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 " +
@@ -12,6 +13,8 @@ const inputClass =
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setPlayerName } = useGame();
+  const [playerName, setPlayerNameInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +26,7 @@ export default function LoginPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
+    setPlayerName(playerName);
     setTimeout(() => router.push("/dashboard"), 400);
   }
 
@@ -105,6 +109,26 @@ export default function LoginPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <div>
+              <label
+                htmlFor="playerName"
+                className="mb-1.5 block text-xs font-semibold text-navy-700"
+              >
+                プレイヤー名
+              </label>
+              <input
+                id="playerName"
+                name="playerName"
+                type="text"
+                required
+                autoComplete="name"
+                placeholder="山田 太郎"
+                value={playerName}
+                onChange={(e) => setPlayerNameInput(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
             <div>
               <label
                 htmlFor="email"

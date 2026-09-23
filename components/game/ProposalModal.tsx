@@ -6,11 +6,15 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
+import { fitAxes } from "@/lib/customers";
+import type { ProposalResolution } from "@/lib/game";
+import { getChannel } from "@/lib/marketing";
 import type { ShipownerRequest } from "@/lib/types";
 
 /**
  * 船主要求 1 件に対する提案作成モーダル。
- * 重視される要素から訴求ポイントを選ばせ、提案を「完了」状態にする。
+ * 重視される要素から訴求ポイントを選ばせ、今ターンの投資チャネルとの
+ * シナジー（相性）で受注可否が劇的に決まる結果をその場で見せる。
  */
 export function ProposalModal({
   request,
@@ -20,8 +24,9 @@ export function ProposalModal({
   onClose: () => void;
 }) {
   const { completeProposal } = useGame();
-  const { money } = useMoney();
+  const { money, moneySigned } = useMoney();
   const [focus, setFocus] = useState<string>(request.priorities[0] ?? "");
+  const [result, setResult] = useState<ProposalResolution | null>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -34,9 +39,111 @@ export function ProposalModal({
   }, [onClose]);
 
   const handleSubmit = () => {
-    completeProposal(request.id);
-    onClose();
+    const resolution = completeProposal(request.id, focus);
+    if (resolution) setResult(resolution);
+    else onClose();
   };
+
+  if (result) {
+    const { outcome, synergy } = result;
+    const won = outcome === "won";
+    const axisLabel =
+      fitAxes.find((a) => a.id === synergy.axis)?.label ?? synergy.axis;
+    const requiredChannelName = getChannel(synergy.requiredChannel).name;
+    const topChannelName = synergy.topChannel
+      ? getChannel(synergy.topChannel).name
+      : "未配分";
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
+        <div
+          className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm"
+          aria-hidden
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="proposal-result-title"
+          className="relative w-full max-w-md overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+        >
+          <div
+            className={`px-6 py-7 text-center text-white ${
+              won ? "bg-emerald-600" : "bg-rose-600"
+            }`}
+          >
+            <Icon
+              name={won ? "check" : "alert"}
+              className="mx-auto h-9 w-9"
+            />
+            <h2 id="proposal-result-title" className="mt-2 text-xl font-bold">
+              {won ? "シナジー的中！即決受注" : "ミスマッチ：的外れな提案"}
+            </h2>
+            <p className="mt-1 text-sm text-white/90">{request.owner}</p>
+          </div>
+
+          <div className="px-6 py-5">
+            {won ? (
+              <p className="text-[13px] leading-relaxed text-navy-700">
+                訴求ポイント「{focus}」（{axisLabel}
+                ）には
+                <span className="font-bold text-navy-900">
+                  {requiredChannelName}
+                </span>
+                への投資が刺さります。今ターン最も投資したチャネルと完全に一致したため、
+                {request.owner} は即座に発注を決定しました。
+              </p>
+            ) : (
+              <p className="text-[13px] leading-relaxed text-navy-700">
+                訴求ポイント「{focus}」（{axisLabel}
+                ）に本来刺さるのは
+                <span className="font-bold text-navy-900">
+                  {requiredChannelName}
+                </span>
+                への投資でしたが、今ターン最も投資していたチャネルは
+                <span className="font-bold text-navy-900">
+                  {topChannelName}
+                </span>
+                でした。どれだけ予算を積んでいても、狙いが外れた提案は響きません。
+              </p>
+            )}
+
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3.5 py-2.5">
+                <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+                  受注インパクト
+                </p>
+                <p
+                  className={`tabular mt-1 text-lg leading-none font-bold ${
+                    won ? "text-emerald-600" : "text-navy-400"
+                  }`}
+                >
+                  {won ? moneySigned(request.budget) : money(0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3.5 py-2.5">
+                <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+                  信頼度スコア
+                </p>
+                <p
+                  className={`tabular mt-1 text-lg leading-none font-bold ${
+                    won ? "text-emerald-600" : "text-rose-600"
+                  }`}
+                >
+                  {won ? "+8" : "-8"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-navy-100 px-6 py-4">
+            <Button size="lg" className="w-full" onClick={onClose}>
+              閉じる
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
@@ -78,6 +185,7 @@ export function ProposalModal({
           </p>
           <p className="mt-1 text-[12px] text-navy-500">
             重視される要素のうち、最も強く訴求するポイントを選んでください。
+            今ターン最も投資したチャネルとの相性で受注可否が決まります。
           </p>
           <div className="mt-2.5 space-y-2">
             {request.priorities.map((p) => (

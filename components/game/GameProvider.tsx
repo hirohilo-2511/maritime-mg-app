@@ -12,8 +12,15 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { getTurnData, initialGameState, turns } from "@/lib/mock-data";
-import { advanceGameState, finalizeGame, purchaseResearch } from "@/lib/game";
+import {
+  advanceGameState,
+  finalizeGame,
+  purchaseResearch,
+  resolveProposal,
+  type ProposalResolution,
+} from "@/lib/game";
 import type {
+  DealOutcome,
   GameState,
   MarketingOutcome,
   MarketingPlan,
@@ -70,10 +77,20 @@ type GameContextValue = {
   hasReport: (reportId: string) => boolean;
   /** ゲームを1年目からやり直す */
   resetGame: () => void;
-  /** 船主要求への提案作成を完了する */
-  completeProposal: (requestId: string) => void;
+  /** プレイヤー名を設定する（ログイン画面で入力） */
+  setPlayerName: (name: string) => void;
+  /**
+   * 船主要求への提案を確定する。選んだ訴求ポイントと今ターンの投資チャネルの
+   * シナジーで受注可否が決まる。すでに提案済みの場合は null を返す。
+   */
+  completeProposal: (
+    requestId: string,
+    focusPriority: string,
+  ) => ProposalResolution | null;
   /** その船主要求への提案が完了済みか */
   isProposalCompleted: (requestId: string) => boolean;
+  /** その船主要求の提案結果（未提案なら null） */
+  dealOutcome: (requestId: string) => DealOutcome | null;
   /** 今ターンの船主要求のうち、1件以上の提案が完了しているか */
   hasProposalThisTurn: boolean;
   /** 顧客への提案を作成できるか（マーケティング予算の確定が前提） */
@@ -230,16 +247,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState(initialGameState);
   }, []);
 
-  const completeProposal = useCallback((requestId: string) => {
-    setState((prev) =>
-      prev.proposalsCompleted.includes(requestId)
-        ? prev
-        : {
-            ...prev,
-            proposalsCompleted: [...prev.proposalsCompleted, requestId],
-          },
-    );
+  const setPlayerName = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setState((prev) => ({ ...prev, playerName: trimmed }));
   }, []);
+
+  const completeProposal = useCallback(
+    (requestId: string, focusPriority: string) => {
+      const resolution = resolveProposal(state, requestId, focusPriority);
+      if (resolution) setState(resolution.state);
+      return resolution;
+    },
+    [state],
+  );
 
   const turnData = getTurnData(state.turn);
   const hasProposalThisTurn = turnData.requests.some((r) =>
@@ -267,9 +288,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       hasReport: (reportId: string) =>
         state.researchPurchases.some((p) => p.reportId === reportId),
       resetGame,
+      setPlayerName,
       completeProposal,
       isProposalCompleted: (requestId: string) =>
         state.proposalsCompleted.includes(requestId),
+      dealOutcome: (requestId: string) => state.dealOutcomes[requestId] ?? null,
       hasProposalThisTurn,
       canCreateProposal,
       canEndTurn,
@@ -289,6 +312,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       commitMarketingPlan,
       purchaseResearchReport,
       resetGame,
+      setPlayerName,
       completeProposal,
       hasProposalThisTurn,
       canCreateProposal,

@@ -1,7 +1,13 @@
 import { getTurnData } from "./mock-data";
 import { emptyPlan, simulateMarketing } from "./marketing";
 import { researchSpendInTurn } from "./research";
-import type { GameState, MarketingOutcome, TurnSettlement } from "./types";
+import {
+  evaluateSynergy,
+  SYNERGY_LOSE_TRUST_DELTA,
+  SYNERGY_WIN_TRUST_DELTA,
+  type SynergyResult,
+} from "./synergy";
+import type { DealOutcome, GameState, MarketingOutcome, TurnSettlement } from "./types";
 
 /** 信頼度スコアを 0–100 に収める */
 export function clampTrust(value: number): number {
@@ -152,5 +158,50 @@ export function finalizeGame(state: GameState): FinalizeResult {
       gameCompleted: true,
     },
     marketing,
+  };
+}
+
+export type ProposalResolution = {
+  /** 提案・シナジー判定後の状態 */
+  state: GameState;
+  /** 受注できたか */
+  outcome: DealOutcome;
+  /** シナジー判定の詳細（結果画面での説明表示に使う） */
+  synergy: SynergyResult;
+};
+
+/**
+ * 船主要求への提案を確定し、シナジー判定に基づいて受注可否を決める純粋関数。
+ * すでに提案済みの要求に対しては状態を変更しない。
+ */
+export function resolveProposal(
+  state: GameState,
+  requestId: string,
+  focusPriority: string,
+): ProposalResolution | null {
+  if (state.proposalsCompleted.includes(requestId)) return null;
+
+  const request = getTurnData(state.turn).requests.find(
+    (r) => r.id === requestId,
+  );
+  if (!request) return null;
+
+  const synergy = evaluateSynergy(focusPriority, state.marketingPlan);
+  const outcome: DealOutcome = synergy.won ? "won" : "lost";
+
+  return {
+    state: {
+      ...state,
+      proposalsCompleted: [...state.proposalsCompleted, requestId],
+      dealOutcomes: { ...state.dealOutcomes, [requestId]: outcome },
+      availableFunds:
+        state.availableFunds + (synergy.won ? request.budget : 0),
+      trustScore: clampTrust(
+        state.trustScore +
+          (synergy.won ? SYNERGY_WIN_TRUST_DELTA : SYNERGY_LOSE_TRUST_DELTA),
+      ),
+    },
+    outcome,
+    synergy,
   };
 }

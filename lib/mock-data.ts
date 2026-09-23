@@ -6,8 +6,18 @@ import type { GameState, TurnData } from "./types";
  * 将来的には API / DB から取得する想定なので、UI からはこのモジュール経由でのみ参照する。
  */
 
+/** プレイヤー（自社）情報 */
+export const company = {
+  name: "Nihon Marine Solutions",
+  segment: "船舶用機器メーカー",
+  /** ログイン画面で入力しなかった場合のデフォルト表示名 */
+  playerName: "山田 太郎",
+  playerRole: "経営企画部長",
+};
+
 /** ゲーム開始時（1年目）の状態 */
 export const initialGameState: GameState = {
+  playerName: company.playerName,
   turn: 1,
   totalTurns: 5,
   availableFunds: 500_000,
@@ -17,16 +27,9 @@ export const initialGameState: GameState = {
   marketingHistory: [],
   researchPurchases: [],
   proposalsCompleted: [],
+  dealOutcomes: {},
   gameCompleted: false,
   teams: ["Nihon Marine Solutions（自社）", "Team Orion", "Team Delta"],
-};
-
-/** プレイヤー（自社）情報 */
-export const company = {
-  name: "Nihon Marine Solutions",
-  segment: "船舶用機器メーカー",
-  playerName: "山田 太郎",
-  playerRole: "経営企画部長",
 };
 
 /** ターンごとのマーケットニュースと船主の要求 */

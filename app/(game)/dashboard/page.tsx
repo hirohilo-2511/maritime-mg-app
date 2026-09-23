@@ -27,7 +27,7 @@ export default function DashboardPage() {
         </div>
         <p className="mt-1.5 text-sm leading-relaxed text-navy-600">
           <span className="font-semibold text-navy-900">
-            {company.playerName}
+            {state.playerName}
           </span>{" "}
           {company.playerRole} — {turnData.headline}
         </p>

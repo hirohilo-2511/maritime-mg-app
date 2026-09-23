@@ -13,17 +13,25 @@ import type { ShipownerRequest } from "@/lib/types";
  * マーケティング予算の確定前は非活性にし、完了後は状態を表示する。
  */
 export function ProposalAction({ request }: { request: ShipownerRequest }) {
-  const { canCreateProposal, isProposalCompleted } = useGame();
+  const { canCreateProposal, isProposalCompleted, dealOutcome } = useGame();
   const [open, setOpen] = useState(false);
   const completed = isProposalCompleted(request.id);
+  const outcome = dealOutcome(request.id);
 
   return (
     <>
       {completed ? (
-        <Badge tone="positive" className="h-8 px-3">
-          <Icon name="check" className="h-3.5 w-3.5" />
-          提案済み
-        </Badge>
+        outcome === "won" ? (
+          <Badge tone="positive" className="h-8 px-3">
+            <Icon name="check" className="h-3.5 w-3.5" />
+            受注！
+          </Badge>
+        ) : (
+          <Badge tone="negative" className="h-8 px-3">
+            <Icon name="alert" className="h-3.5 w-3.5" />
+            失注（ミスマッチ）
+          </Badge>
+        )
       ) : (
         <Button
           variant="secondary"

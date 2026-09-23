@@ -2,6 +2,8 @@
 
 /** ヘッダーに表示するゲームの進行状況 */
 export type GameState = {
+  /** プレイヤー名（ログイン画面で入力） */
+  playerName: string;
   /** 現在のターン（年） */
   turn: number;
   /** 想定される総ターン数 */
@@ -20,11 +22,16 @@ export type GameState = {
   researchPurchases: ResearchPurchase[];
   /** 今ターン中に提案を完了した船主要求の ID */
   proposalsCompleted: string[];
+  /** 提案の結果（船主要求 ID → 受注 / 失注）。チャネルとの相性で決まる */
+  dealOutcomes: Record<string, DealOutcome>;
   /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
   gameCompleted: boolean;
   /** セッションに参加しているチーム名 */
   teams: string[];
 };
+
+/** 提案の結果。重視ポイントと投資チャネルの相性で決まる */
+export type DealOutcome = "won" | "lost";
 
 /** 市場調査レポートの購入記録 */
 export type ResearchPurchase = {
