@@ -14,6 +14,8 @@ export type ChannelBreakdown = {
 export type FinalReportData = {
   grade: Grade;
   gradeTagline: string;
+  /** なぜその評価になったのか（財務と信頼度のバランス）を説明する詳細テキスト */
+  evaluationReason: string;
   finalFunds: number;
   fundsDelta: number;
   finalTrust: number;
@@ -47,6 +49,70 @@ const gradeTaglines: Record<Grade, string> = {
   B: "平均的な経営判断でした。基礎は固められていますが、投資判断でさらに伸ばせる余地があります。",
   C: "厳しい5年間でした。資金・信頼度のいずれか、あるいは両方が伸び悩む結果になっています。",
 };
+
+type PerformanceTier = "excellent" | "good" | "flat" | "poor";
+
+/** 資金の伸び（初期資金比）を 4 段階に分類する */
+function fundsTier(ratio: number): PerformanceTier {
+  if (ratio >= 3) return "excellent";
+  if (ratio >= 1.5) return "good";
+  if (ratio >= 0.8) return "flat";
+  return "poor";
+}
+
+/** 信頼度スコアを 4 段階に分類する */
+function trustTier(trust: number): PerformanceTier {
+  if (trust >= 85) return "excellent";
+  if (trust >= 65) return "good";
+  if (trust >= 40) return "flat";
+  return "poor";
+}
+
+const isStrong = (tier: PerformanceTier) =>
+  tier === "excellent" || tier === "good";
+
+/**
+ * 「なぜその評価になったのか」を説明する詳細テキストを生成する。
+ * 総合評価は財務（最終資金）と信頼度（顧客満足）の合成指標だが、
+ * 画面上ではその内訳が見えないため、片方だけが極端に高い／低い場合に
+ * ギャップを明示する（例：信頼度は満点でも財務が悪化していれば B 評価、など）。
+ */
+function buildEvaluationReason(
+  grade: Grade,
+  finalFunds: number,
+  finalTrust: number,
+): string {
+  const ratio = finalFunds / initialGameState.availableFunds;
+  const fundsPct = Math.round(ratio * 100);
+  const fTier = fundsTier(ratio);
+  const tTier = trustTier(finalTrust);
+
+  const trustPhrase: Record<PerformanceTier, string> = {
+    excellent: `信頼度スコアは${finalTrust}点と非常に高い水準です`,
+    good: `信頼度スコアは${finalTrust}点と良好な水準です`,
+    flat: `信頼度スコアは${finalTrust}点と平均的な水準です`,
+    poor: `信頼度スコアは${finalTrust}点と低調な水準です`,
+  };
+  const fundsPhrase: Record<PerformanceTier, string> = {
+    excellent: `一方、最終資金は初期資金比${fundsPct}%まで大きく伸び、投資は十分に回収できています`,
+    good: `一方、最終資金は初期資金比${fundsPct}%まで着実に増加しました`,
+    flat: `一方、最終資金は初期資金比${fundsPct}%とほぼ横ばいで、投資額に見合った増加には至っていません`,
+    poor: `一方、最終資金は初期資金比${fundsPct}%まで落ち込み、投資額に対して利益が伴っていません`,
+  };
+
+  let verdict: string;
+  if (isStrong(tTier) && !isStrong(fTier)) {
+    verdict = `信頼度は高い一方で財務状況が悪化しているため、総合評価は${grade}に留まっています。`;
+  } else if (isStrong(fTier) && !isStrong(tTier)) {
+    verdict = `資金面は好調な一方で顧客からの信頼が伴っていないため、総合評価は${grade}に留まっています。`;
+  } else if (isStrong(tTier) && isStrong(fTier)) {
+    verdict = `財務・信頼度の両面で高い成果を上げられたため、総合評価は${grade}となりました。`;
+  } else {
+    verdict = `財務・信頼度のいずれも伸び悩んだ結果、総合評価は${grade}となりました。`;
+  }
+
+  return `${trustPhrase[tTier]}。${fundsPhrase[fTier]}。${verdict}`;
+}
 
 const styleCopy: Record<
   MarketingChannelId,
@@ -179,6 +245,11 @@ export function buildFinalReport(state: GameState): FinalReportData {
   return {
     grade,
     gradeTagline: gradeTaglines[grade],
+    evaluationReason: buildEvaluationReason(
+      grade,
+      state.availableFunds,
+      state.trustScore,
+    ),
     finalFunds: state.availableFunds,
     fundsDelta: state.availableFunds - initialGameState.availableFunds,
     finalTrust: state.trustScore,

@@ -55,6 +55,23 @@ export function FinalReport() {
               </p>
             </div>
           </div>
+
+          {/* 評価の詳細な理由：概要を邪魔しないようアコーディオンで開閉する */}
+          <details className="group mt-4 max-w-2xl rounded-lg border border-white/10 bg-white/5 open:bg-white/10">
+            <summary className="flex list-none items-center justify-between gap-2 px-3.5 py-2.5 text-[12px] font-semibold text-navy-200 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                <Icon name="alert" className="h-3.5 w-3.5 text-sea-400" />
+                なぜこの評価に？ 評価の理由を見る
+              </span>
+              <Icon
+                name="arrowRight"
+                className="h-3.5 w-3.5 shrink-0 text-navy-400 transition-transform group-open:rotate-90"
+              />
+            </summary>
+            <p className="border-t border-white/10 px-3.5 py-3 text-[12px] leading-relaxed text-navy-200">
+              {report.evaluationReason}
+            </p>
+          </details>
         </div>
 
         <div className="grid grid-cols-2 gap-px bg-navy-100 sm:grid-cols-4">

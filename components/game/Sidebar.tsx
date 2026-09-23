@@ -224,9 +224,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           size="lg"
           className="w-full"
           onClick={advanceTurn}
-          disabled={
-            isAdvancing || (isFinalTurn && !state.gameCompleted && !canEndTurn)
-          }
+          disabled={isAdvancing || (!state.gameCompleted && !canEndTurn)}
           aria-busy={isAdvancing}
           title={
             state.gameCompleted
