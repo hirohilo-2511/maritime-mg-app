@@ -11,11 +11,14 @@ export function ChannelBudgetRow({
   channel,
   amount,
   effect,
+  disabled = false,
   onChange,
 }: {
   channel: MarketingChannel;
   amount: number;
   effect: ChannelEffect;
+  /** 提案済み・ゲーム終了後など、配分を変更できない状態 */
+  disabled?: boolean;
   onChange: (amount: number) => void;
 }) {
   const { money } = useMoney();
@@ -51,10 +54,11 @@ export function ChannelBudgetRow({
               max={channel.max}
               step={BUDGET_STEP}
               value={amount}
+              disabled={disabled}
               onChange={(e) => onChange(Number(e.target.value))}
               aria-label={`${channel.name}への配分額`}
               aria-valuetext={money(amount)}
-              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-navy-200 accent-navy-800"
+              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-navy-200 accent-navy-800 disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: `linear-gradient(to right, var(--color-navy-700) ${ratio}%, var(--color-navy-200) ${ratio}%)`,
               }}

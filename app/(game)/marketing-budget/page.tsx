@@ -23,8 +23,15 @@ import type { MarketingChannelId } from "@/lib/types";
 const PRESET_RATIO = 0.3;
 
 export default function MarketingBudgetPage() {
-  const { state, isFinalTurn, updateMarketingPlan, commitMarketingPlan } =
-    useGame();
+  const {
+    state,
+    isFinalTurn,
+    isPlanLocked,
+    hasProposalThisTurn,
+    updateMarketingPlan,
+    commitMarketingPlan,
+    skipMarketing,
+  } = useGame();
   const { money } = useMoney();
 
   const plan = state.marketingPlan;
@@ -35,8 +42,10 @@ export default function MarketingBudgetPage() {
   const overBudget = remaining < 0;
   const usageRatio =
     budget > 0 ? Math.min(100, (outcome.spend / budget) * 100) : 0;
-  const canCommit =
-    !overBudget && outcome.spend > 0 && !state.marketingCommitted;
+  // $0（投資見送り）でも確定できる。資金が尽きかけていても必ずターンを進められるようにするため
+  const canCommit = !overBudget && !state.marketingCommitted && !isPlanLocked;
+  // 最小刻み（$10,000）すら配分できない資金状態
+  const cannotAfford = state.availableFunds < BUDGET_STEP;
 
   const setAmount = (id: MarketingChannelId, amount: number) =>
     updateMarketingPlan({ ...plan, [id]: amount });
@@ -129,6 +138,22 @@ export default function MarketingBudgetPage() {
               超えています。確定するには配分を減らしてください。
             </p>
           ) : null}
+
+          {cannotAfford && !state.gameCompleted ? (
+            <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">
+              <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+              利用可能資金が最小配分単位（{money(BUDGET_STEP)}
+              ）に届かないため、今期は投資できません。「投資を見送る」で $0
+              のまま確定し、ターンを進めてください。
+            </p>
+          ) : null}
+
+          {hasProposalThisTurn && !state.gameCompleted ? (
+            <p className="mt-3 flex items-start gap-2 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[13px] text-navy-600">
+              <Icon name="check" className="mt-0.5 h-4 w-4 shrink-0" />
+              今ターンはすでに船主へ提案したため、配分は確定内容で固定されています（提案の根拠になった配分を後から変えることはできません）。
+            </p>
+          ) : null}
         </CardBody>
       </Card>
 
@@ -145,6 +170,7 @@ export default function MarketingBudgetPage() {
                   <Button
                     variant="secondary"
                     size="sm"
+                    disabled={isPlanLocked}
                     onClick={() =>
                       updateMarketingPlan(evenSplit(budget * PRESET_RATIO))
                     }
@@ -155,6 +181,7 @@ export default function MarketingBudgetPage() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={isPlanLocked}
                     onClick={() => updateMarketingPlan(emptyPlan())}
                   >
                     クリア
@@ -169,6 +196,7 @@ export default function MarketingBudgetPage() {
                   channel={channel}
                   amount={plan[channel.id]}
                   effect={outcome.byChannel[channel.id]}
+                  disabled={isPlanLocked}
                   onChange={(amount) => setAmount(channel.id, amount)}
                 />
               ))}
@@ -270,18 +298,36 @@ export default function MarketingBudgetPage() {
                   </>
                 ) : overBudget ? (
                   "予算超過"
+                ) : outcome.spend === 0 ? (
+                  "投資を見送って確定する（$0）"
                 ) : (
                   "この配分で確定する"
                 )}
               </Button>
+              {!state.marketingCommitted &&
+              outcome.spend > 0 &&
+              !isPlanLocked ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={skipMarketing}
+                >
+                  今期は投資を見送る（$0で確定）
+                </Button>
+              ) : null}
               <p className="mt-2 text-[11px] leading-relaxed text-navy-400">
-                {state.marketingCommitted
-                  ? isFinalTurn
-                    ? "最終ターンのため、この投資は次期計画として記録されます。"
-                    : "ターン終了時に実行されます。スライダーを動かすと未確定に戻ります。"
-                  : outcome.spend === 0
-                    ? "1つ以上のチャネルに配分してください。未確定のままターンを終了すると投資は行われません。"
-                    : "未確定の配分はターン終了時に実行されません。"}
+                {state.gameCompleted
+                  ? "ゲームは終了しています。"
+                  : state.marketingCommitted
+                    ? isFinalTurn
+                      ? "最終ターンの投資もターン終了時に資金から差し引かれ、最終評価に反映されます。"
+                      : hasProposalThisTurn
+                        ? "ターン終了時に実行されます。提案済みのため配分は変更できません。"
+                        : "ターン終了時に実行されます。スライダーを動かすと未確定に戻ります。"
+                    : outcome.spend === 0
+                      ? "投資なしで確定すると、今ターンの提案はすべて失注します（投資チャネルがないため）。"
+                      : "配分を確定すると、提案の作成とターン終了ができるようになります。"}
               </p>
             </div>
           </Card>

@@ -21,7 +21,9 @@ const categoryOrder: ResearchCategory[] = [
 ];
 
 export default function MarketResearchPage() {
-  const { state, purchaseResearchReport, hasReport } = useGame();
+  const { state, purchaseResearchReport, hasReport, spendable, isLocked } =
+    useGame();
+  const committedSpend = state.availableFunds - spendable;
   const { money } = useMoney();
 
   const purchasedTurnById = useMemo(
@@ -134,7 +136,14 @@ export default function MarketResearchPage() {
                   purchased={hasReport(report.id)}
                   purchasedTurn={purchasedTurnById.get(report.id)}
                   available={isAvailable(report, state.turn)}
-                  affordable={report.cost <= state.availableFunds}
+                  affordable={!isLocked && report.cost <= spendable}
+                  unaffordableReason={
+                    state.gameCompleted
+                      ? "ゲームは終了しています"
+                      : committedSpend > 0 && report.cost <= state.availableFunds
+                        ? `確定済みのマーケティング予算 ${money(committedSpend)} を差し引くと、使える資金は ${money(Math.max(0, spendable))} です`
+                        : `使える資金 ${money(Math.max(0, spendable))} に対して ${money(report.cost - Math.max(0, spendable))} 不足しています`
+                  }
                   onPurchase={() =>
                     purchaseResearchReport(report.id, report.cost)
                   }

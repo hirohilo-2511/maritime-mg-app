@@ -20,17 +20,25 @@ import {
 } from "@/lib/modes";
 import {
   advanceGameState,
+  canEndTurn as canEndTurnFor,
   finalizeGame,
+  hasProposedThisTurn,
+  isAnswered,
   purchaseResearch,
   resolveProposal,
+  spendableFunds,
+  unansweredPenalty,
+  unansweredRequests,
   type ProposalResolution,
 } from "@/lib/game";
+import { emptyPlan } from "@/lib/marketing";
 import type {
   DealOutcome,
   GameMode,
   GameState,
   MarketingOutcome,
   MarketingPlan,
+  ShipownerRequest,
   TurnData,
   TurnSettlement,
 } from "@/lib/types";
@@ -39,13 +47,19 @@ import type {
 export type TurnResult = {
   /** 終了したターン */
   fromTurn: number;
-  /** 開始したターン */
+  /** 開始したターン（倒産した場合は fromTurn のまま） */
   toTurn: number;
   settlement: TurnSettlement;
   /** 実行されたマーケティング投資の結果 */
   marketing: MarketingOutcome;
   /** 終了したターン中に支出した市場調査費（参考表示） */
   researchSpend: number;
+  /** 未回答のまま見送った船主要求の件数 */
+  unansweredCount: number;
+  /** 未回答による信頼度ペナルティ */
+  unansweredPenalty: number;
+  /** この決算で倒産したか */
+  bankrupt: boolean;
   fundsBefore: number;
   fundsAfter: number;
   trustBefore: number;
@@ -62,13 +76,15 @@ type GameContextValue = {
   isFinalTurn: boolean;
   /** 決算処理中（擬似的な非同期処理）か */
   isAdvancing: boolean;
-  /** ターンを終了して次のターンへ進める */
+  /** 状態を変更する操作を受け付けない状態か（決算処理中・ゲーム終了後） */
+  isLocked: boolean;
+  /** ターンを終了して次のターンへ進める（ゲーム終了後は結果画面を開く） */
   advanceTurn: () => void;
   /** 直近のターン終了結果。未確認のあいだモーダルを表示する */
   turnResult: TurnResult | null;
   /** 決算モーダルを閉じる */
   dismissTurnResult: () => void;
-  /** セッションの総ターン数を変更する（現在のターンより小さくはできない） */
+  /** セッションの総ターン数を変更する（現在のターンより小さくはできない・終了後は不可） */
   setTotalTurns: (totalTurns: number) => void;
   /** 参加チームを追加する */
   addTeam: (name: string) => void;
@@ -80,10 +96,16 @@ type GameContextValue = {
   updateMarketingPlan: (plan: MarketingPlan) => void;
   /** 現在の配分を確定する（ターン終了時に実行される） */
   commitMarketingPlan: () => void;
+  /** 今ターンは投資を見送る（配分 $0 で確定する） */
+  skipMarketing: () => void;
+  /** 配分を変更できない状態か（今ターン提案済み・決算処理中・終了後） */
+  isPlanLocked: boolean;
   /** 市場調査レポートを購入する（費用は即時に資金から差し引かれる） */
   purchaseResearchReport: (reportId: string, cost: number) => void;
   /** レポートを購入済みか */
   hasReport: (reportId: string) => boolean;
+  /** 市場調査などに今すぐ使える資金（確定済み配分を差し引いた額） */
+  spendable: number;
   /** 同じ難易度のまま、ゲームを1年目からやり直す（プレイヤー名は引き継ぐ） */
   resetGame: () => void;
   /**
@@ -95,7 +117,7 @@ type GameContextValue = {
   setPlayerName: (name: string) => void;
   /**
    * 船主要求への提案を確定する。選んだ訴求ポイントと今ターンの投資チャネルの
-   * シナジーで受注可否が決まる。すでに提案済みの場合は null を返す。
+   * シナジーで受注可否が決まる。提案できない場合は null を返す。
    */
   completeProposal: (
     requestId: string,
@@ -107,9 +129,13 @@ type GameContextValue = {
   dealOutcome: (requestId: string) => DealOutcome | null;
   /** 今ターンの船主要求のうち、1件以上の提案が完了しているか */
   hasProposalThisTurn: boolean;
+  /** 今ターンの未回答の船主要求 */
+  unanswered: ShipownerRequest[];
+  /** 未回答のままターンを終えた場合の信頼度ペナルティ */
+  unansweredPenalty: number;
   /** 顧客への提案を作成できるか（マーケティング予算の確定が前提） */
   canCreateProposal: boolean;
-  /** ターンを終了できるか（予算配分の確定 → 提案作成の完了、の順を満たしているか） */
+  /** ターンを終了できるか（予算配分の確定が前提。未回答はペナルティ付きで可） */
   canEndTurn: boolean;
 };
 
@@ -130,6 +156,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [turnResult, setTurnResult] = useState<TurnResult | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 決算処理中かどうかを、setState の更新関数の中からも同期的に参照するための ref
+  const advancingRef = useRef(false);
+  // 決算処理のタイマー内で、クリック時点ではなく最新の状態を使うための ref
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // アンマウント時に進行中のタイマーを破棄する
   useEffect(() => {
@@ -138,70 +172,91 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const stopAdvancing = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    advancingRef.current = false;
+    setIsAdvancing(false);
+  }, []);
+
+  /**
+   * プレイ内容を変更する操作の共通ガード。
+   * 決算処理中とゲーム終了後は状態を変更しない（終了後の再提案・購入などを防ぐ）。
+   */
+  const updatePlayState = useCallback(
+    (updater: (prev: GameState) => GameState) => {
+      setState((prev) =>
+        advancingRef.current || prev.gameCompleted ? prev : updater(prev),
+      );
+    },
+    [],
+  );
+
   const isFinalTurn = state.turn >= state.totalTurns;
 
   const advanceTurn = useCallback(() => {
-    if (isAdvancing) return;
+    if (advancingRef.current) return;
 
-    // 最終ターンをすでに終えている場合は、フィードバック画面を開くだけ
-    if (isFinalTurn && state.gameCompleted) {
+    // 終了済み（最終ターン完了・倒産）の場合は、フィードバック画面を開くだけ
+    if (state.gameCompleted) {
       router.push("/final-report");
       return;
     }
+    if (!canEndTurnFor(state)) return;
 
+    advancingRef.current = true;
     setIsAdvancing(true);
     // 擬似的な非同期処理。将来的にはサーバー側のターン決算 API に置き換える
     timerRef.current = setTimeout(() => {
+      const current = stateRef.current;
+      timerRef.current = null;
+
       // 最終ターン：次ターンへは進めないため、ゲームを完了状態にしてフィードバック画面へ
-      if (isFinalTurn) {
-        const { state: next } = finalizeGame(state);
+      if (current.turn >= current.totalTurns) {
+        const { state: next } = finalizeGame(current);
         setState(next);
+        advancingRef.current = false;
         setIsAdvancing(false);
-        timerRef.current = null;
         router.push("/final-report");
         return;
       }
 
-      const {
-        state: next,
-        settlement,
-        marketing,
-        researchSpend,
-        advanced,
-      } = advanceGameState(state);
-
-      if (advanced) {
-        setState(next);
-
-        if (settlement) {
+      const result = advanceGameState(current);
+      if (result.advanced) {
+        setState(result.state);
+        if (result.settlement) {
           setTurnResult({
-            fromTurn: state.turn,
-            toTurn: next.turn,
-            settlement,
-            marketing,
-            researchSpend,
-            fundsBefore: state.availableFunds,
-            fundsAfter: next.availableFunds,
-            trustBefore: state.trustScore,
-            trustAfter: next.trustScore,
+            fromTurn: current.turn,
+            toTurn: result.state.turn,
+            settlement: result.settlement,
+            marketing: result.marketing,
+            researchSpend: result.researchSpend,
+            unansweredCount: result.unansweredCount,
+            unansweredPenalty: result.unansweredPenalty,
+            bankrupt: result.bankrupt,
+            fundsBefore: current.availableFunds,
+            fundsAfter: result.state.availableFunds,
+            trustBefore: current.trustScore,
+            trustAfter: result.state.trustScore,
           });
         }
       }
 
+      advancingRef.current = false;
       setIsAdvancing(false);
-      timerRef.current = null;
     }, SETTLEMENT_DELAY_MS);
-  }, [isAdvancing, isFinalTurn, state, router]);
+  }, [state, router]);
 
-  const setTotalTurns = useCallback((totalTurns: number) => {
-    setState((prev) => ({
-      ...prev,
-      // 進行済みのターンより短くはできず、データがある範囲に収める
-      totalTurns: Math.max(prev.turn, Math.min(totalTurns, MAX_TURNS)),
-      // 総ターン数が変わるため、完了済みフラグはいったん解除する
-      gameCompleted: false,
-    }));
-  }, []);
+  const setTotalTurns = useCallback(
+    (totalTurns: number) => {
+      updatePlayState((prev) => ({
+        ...prev,
+        // 進行済みのターンより短くはできず、データがある範囲に収める
+        totalTurns: Math.max(prev.turn, Math.min(totalTurns, MAX_TURNS)),
+      }));
+    },
+    [updatePlayState],
+  );
 
   const addTeam = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -220,50 +275,72 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const jumpToTurn = useCallback((turn: number) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    setIsAdvancing(false);
-    setTurnResult(null);
-    setState((prev) => ({
-      ...prev,
-      turn: Math.max(1, Math.min(turn, prev.totalTurns)),
-      // ターン移動により最終ターンの完了状態は無効化する
-      gameCompleted: false,
-    }));
-  }, []);
+  const jumpToTurn = useCallback(
+    (turn: number) => {
+      stopAdvancing();
+      setTurnResult(null);
+      setState((prev) => {
+        const target = Math.max(1, Math.min(turn, prev.totalTurns));
+        if (target === prev.turn && !prev.gameCompleted) return prev;
+        return {
+          ...prev,
+          turn: target,
+          // ターン移動により、そのターンの進行状況と完了状態は無効化する
+          marketingCommitted: false,
+          proposalsCompleted: [],
+          gameCompleted: false,
+          bankrupt: false,
+          demoOperated: true,
+        };
+      });
+    },
+    [stopAdvancing],
+  );
 
-  const updateMarketingPlan = useCallback((plan: MarketingPlan) => {
-    setState((prev) => ({
-      ...prev,
-      marketingPlan: plan,
-      marketingCommitted: false,
-    }));
-  }, []);
+  const updateMarketingPlan = useCallback(
+    (plan: MarketingPlan) => {
+      updatePlayState((prev) =>
+        // 提案後に配分を組み替えると、判定に使った配分と実際の支出が食い違うため変更不可
+        hasProposedThisTurn(prev)
+          ? prev
+          : { ...prev, marketingPlan: plan, marketingCommitted: false },
+      );
+    },
+    [updatePlayState],
+  );
 
   const commitMarketingPlan = useCallback(() => {
-    setState((prev) => ({ ...prev, marketingCommitted: true }));
-  }, []);
+    updatePlayState((prev) => ({ ...prev, marketingCommitted: true }));
+  }, [updatePlayState]);
+
+  const skipMarketing = useCallback(() => {
+    updatePlayState((prev) =>
+      hasProposedThisTurn(prev)
+        ? prev
+        : { ...prev, marketingPlan: emptyPlan(), marketingCommitted: true },
+    );
+  }, [updatePlayState]);
 
   const purchaseResearchReport = useCallback(
     (reportId: string, cost: number) => {
-      // 二重購入・資金不足の判定は purchaseResearch 側で行う
-      setState((prev) => purchaseResearch(prev, reportId, cost));
+      // 二重購入・資金不足・終了後の判定は purchaseResearch 側で行う
+      updatePlayState((prev) => purchaseResearch(prev, reportId, cost));
     },
-    [],
+    [updatePlayState],
   );
 
-  const startGame = useCallback((mode: GameMode, playerName?: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    setIsAdvancing(false);
-    setTurnResult(null);
-    setState((prev) =>
-      createInitialGameState(mode, {
-        playerName: playerName?.trim() || prev.playerName,
-      }),
-    );
-  }, []);
+  const startGame = useCallback(
+    (mode: GameMode, playerName?: string) => {
+      stopAdvancing();
+      setTurnResult(null);
+      setState((prev) =>
+        createInitialGameState(mode, {
+          playerName: playerName?.trim() || prev.playerName,
+        }),
+      );
+    },
+    [stopAdvancing],
+  );
 
   const resetGame = useCallback(
     () => startGame(state.mode),
@@ -278,11 +355,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const completeProposal = useCallback(
     (requestId: string, focusPriority: string) => {
-      const resolution = resolveProposal(state, requestId, focusPriority);
-      if (resolution) setState(resolution.state);
+      if (advancingRef.current) return null;
+      const resolution = resolveProposal(
+        stateRef.current,
+        requestId,
+        focusPriority,
+      );
+      if (resolution) {
+        stateRef.current = resolution.state;
+        setState(resolution.state);
+      }
       return resolution;
     },
-    [state],
+    [],
   );
 
   const modeConfig = getModeConfig(state.mode);
@@ -290,11 +375,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     () => getScenarioTurn(state.turn, state.mode),
     [state.turn, state.mode],
   );
+  const isLocked = isAdvancing || state.gameCompleted;
   const hasProposalThisTurn = turnData.requests.some((r) =>
     state.proposalsCompleted.includes(r.id),
   );
-  const canCreateProposal = state.marketingCommitted;
-  const canEndTurn = canCreateProposal && hasProposalThisTurn;
+  const unanswered = useMemo(() => unansweredRequests(state), [state]);
+  const penalty = unansweredPenalty(state);
+  const canCreateProposal = state.marketingCommitted && !isLocked;
+  const canEndTurn = canEndTurnFor(state) && !isAdvancing;
+  const isPlanLocked = isLocked || hasProposedThisTurn(state);
+  const spendable = spendableFunds(state);
 
   const value = useMemo<GameContextValue>(
     () => ({
@@ -303,6 +393,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       turnData,
       isFinalTurn,
       isAdvancing,
+      isLocked,
       advanceTurn,
       turnResult,
       dismissTurnResult: () => setTurnResult(null),
@@ -312,17 +403,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
       jumpToTurn,
       updateMarketingPlan,
       commitMarketingPlan,
+      skipMarketing,
+      isPlanLocked,
       purchaseResearchReport,
       hasReport: (reportId: string) =>
         state.researchPurchases.some((p) => p.reportId === reportId),
+      spendable,
       resetGame,
       startGame,
       setPlayerName,
       completeProposal,
-      isProposalCompleted: (requestId: string) =>
-        state.proposalsCompleted.includes(requestId),
+      isProposalCompleted: (requestId: string) => isAnswered(state, requestId),
       dealOutcome: (requestId: string) => state.dealOutcomes[requestId] ?? null,
       hasProposalThisTurn,
+      unanswered,
+      unansweredPenalty: penalty,
       canCreateProposal,
       canEndTurn,
     }),
@@ -332,6 +427,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       turnData,
       isFinalTurn,
       isAdvancing,
+      isLocked,
       advanceTurn,
       turnResult,
       setTotalTurns,
@@ -340,12 +436,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
       jumpToTurn,
       updateMarketingPlan,
       commitMarketingPlan,
+      skipMarketing,
+      isPlanLocked,
       purchaseResearchReport,
+      spendable,
       resetGame,
       startGame,
       setPlayerName,
       completeProposal,
       hasProposalThisTurn,
+      unanswered,
+      penalty,
       canCreateProposal,
       canEndTurn,
     ],

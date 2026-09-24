@@ -17,7 +17,7 @@ export default function FinalReportPage() {
           まだ総合フィードバックはありません
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-navy-500">
-          最終ターンを終了すると、ここに5年間の総合フィードバックが表示されます。
+          最終ターンを終了すると、ここにプレイ全体の総合フィードバックが表示されます。
         </p>
         <Link href="/dashboard">
           <Button size="lg" className="mt-5">

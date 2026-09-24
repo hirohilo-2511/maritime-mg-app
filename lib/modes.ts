@@ -29,6 +29,12 @@ export type ModeConfig = {
   /** 失注時の信頼度変動 */
   loseTrustDelta: number;
   /**
+   * 船主の要求に回答しないままターンを終えた場合の信頼度変動（1件あたり）。
+   * 顧客を無視するほうが「負ける提案」より悪い、という B2B の原則に合わせ、
+   * 失注時より重くしている。
+   */
+  ignoreTrustDelta: number;
+  /**
    * 受注に必要な「訴求ポイントに対応するチャネル」への最低投資額（USD）。
    * 0 の場合は最大投資チャネルと一致するだけで受注できる。
    */
@@ -56,6 +62,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     settlementExpenseRate: 1,
     winTrustDelta: 8,
     loseTrustDelta: -8,
+    ignoreTrustDelta: -10,
     minSynergySpend: 0,
     showAdvancedMetrics: false,
   },
@@ -79,6 +86,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     settlementExpenseRate: 1.2,
     winTrustDelta: 6,
     loseTrustDelta: -12,
+    ignoreTrustDelta: -15,
     minSynergySpend: 100_000,
     showAdvancedMetrics: true,
   },

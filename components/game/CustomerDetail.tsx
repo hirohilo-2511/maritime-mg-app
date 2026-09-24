@@ -25,11 +25,14 @@ const dealStatus: Record<DealStatus, { label: string; tone: BadgeTone }> = {
 
 export function CustomerDetail({
   customer,
+  relationship,
   capability,
   turn,
   activeRequest,
 }: {
   customer: Customer;
+  /** プレイ内容を反映した現在の関係性スコア */
+  relationship: number;
   capability: FitScores;
   turn: number;
   /** 今ターン、この船主から出ている引き合い */
@@ -67,7 +70,7 @@ export function CustomerDetail({
               </p>
             </div>
             <div className="w-full max-w-[13rem] shrink-0">
-              <RelationshipMeter score={customer.relationship} />
+              <RelationshipMeter score={relationship} />
             </div>
           </div>
 

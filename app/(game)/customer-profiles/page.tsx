@@ -7,6 +7,7 @@ import { useGame } from "@/components/game/GameProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import {
+  currentRelationship,
   customers,
   ownCapability,
   shortfallAxes,
@@ -83,7 +84,7 @@ export default function CustomerProfilesPage() {
 
                     <div className="mt-2">
                       <RelationshipMeter
-                        score={customer.relationship}
+                        score={currentRelationship(customer, state)}
                         size="sm"
                       />
                     </div>
@@ -116,6 +117,7 @@ export default function CustomerProfilesPage() {
         {/* 選択中の船主の詳細 */}
         <CustomerDetail
           customer={selected}
+          relationship={currentRelationship(selected, state)}
           capability={capability}
           turn={state.turn}
           activeRequest={requestByOwner.get(selected.name)}

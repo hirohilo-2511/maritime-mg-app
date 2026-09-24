@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
@@ -37,18 +38,26 @@ function Row({
 export function TurnResultModal() {
   const { turnResult, dismissTurnResult } = useGame();
   const { money, moneySigned } = useMoney();
+  const router = useRouter();
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const bankrupt = turnResult?.bankrupt ?? false;
+
+  // 倒産した場合は、モーダルを閉じると同時に最終レポートへ移動する
+  const close = useCallback(() => {
+    dismissTurnResult();
+    if (bankrupt) router.push("/final-report");
+  }, [bankrupt, dismissTurnResult, router]);
 
   // Escape で閉じる
   useEffect(() => {
     if (!turnResult) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismissTurnResult();
+      if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKeyDown);
     confirmRef.current?.focus();
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [turnResult, dismissTurnResult]);
+  }, [turnResult, close]);
 
   if (!turnResult) return null;
 
@@ -58,6 +67,8 @@ export function TurnResultModal() {
     settlement,
     marketing,
     researchSpend,
+    unansweredCount,
+    unansweredPenalty,
     fundsBefore,
     fundsAfter,
     trustBefore,
@@ -71,7 +82,7 @@ export function TurnResultModal() {
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       <div
         className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm"
-        onClick={dismissTurnResult}
+        onClick={close}
         aria-hidden
       />
 
@@ -79,23 +90,38 @@ export function TurnResultModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="turn-result-title"
-        className="relative w-full max-w-md overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+        className="relative max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
       >
         {/* ヘッダー */}
-        <div className="bg-navy-900 px-6 py-5 text-white">
-          <p className="text-[10px] font-semibold tracking-widest text-navy-400">
-            TURN SETTLEMENT
-          </p>
-          <h2 id="turn-result-title" className="mt-1 text-xl font-bold">
-            {fromTurn}年目の決算
-          </h2>
-          <p className="mt-1 flex items-center gap-2 text-sm text-navy-300">
-            {fromTurn}年目
-            <Icon name="arrowRight" className="h-4 w-4 text-sea-400" />
-            <span className="font-semibold text-white">{toTurn}年目</span>
-            に進みました
-          </p>
-        </div>
+        {bankrupt ? (
+          <div className="bg-rose-700 px-6 py-5 text-white">
+            <p className="text-[10px] font-semibold tracking-widest text-rose-200">
+              BANKRUPTCY
+            </p>
+            <h2 id="turn-result-title" className="mt-1 text-xl font-bold">
+              {fromTurn}年目の決算で倒産しました
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-rose-100">
+              決算後の資金が {money(fundsAfter)}{" "}
+              となり、事業を継続できなくなりました。ここでゲームは終了です。
+            </p>
+          </div>
+        ) : (
+          <div className="bg-navy-900 px-6 py-5 text-white">
+            <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+              TURN SETTLEMENT
+            </p>
+            <h2 id="turn-result-title" className="mt-1 text-xl font-bold">
+              {fromTurn}年目の決算
+            </h2>
+            <p className="mt-1 flex items-center gap-2 text-sm text-navy-300">
+              {fromTurn}年目
+              <Icon name="arrowRight" className="h-4 w-4 text-sea-400" />
+              <span className="font-semibold text-white">{toTurn}年目</span>
+              に進みました
+            </p>
+          </div>
+        )}
 
         {/* 決算明細 */}
         <div className="px-6 py-4">
@@ -121,6 +147,14 @@ export function TurnResultModal() {
               tone={netIncome >= 0 ? "positive" : "negative"}
             />
           </dl>
+
+          {unansweredCount > 0 ? (
+            <p className="mt-2 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-[12px] leading-relaxed text-rose-700">
+              <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              船主の要求 {unansweredCount}件に回答しなかったため、信頼度{" "}
+              {unansweredPenalty} と関係性の悪化が生じました。
+            </p>
+          ) : null}
 
           {researchSpend > 0 ? (
             <p className="mt-1 text-[11px] text-navy-400">
@@ -180,7 +214,7 @@ export function TurnResultModal() {
             ) : (
               <p className="flex items-start gap-2 text-[13px] text-amber-700">
                 <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
-                マーケティング予算が未確定だったため、今ターンの投資は行われませんでした。
+                今ターンはマーケティング投資を見送りました（$0 で確定）。
               </p>
             )}
           </div>
@@ -207,9 +241,9 @@ export function TurnResultModal() {
             ref={confirmRef}
             size="lg"
             className="w-full"
-            onClick={dismissTurnResult}
+            onClick={close}
           >
-            {toTurn}年目を開始する
+            {bankrupt ? "最終レポートを見る" : `${toTurn}年目を開始する`}
             <Icon name="arrowRight" className="h-4 w-4" />
           </Button>
         </div>

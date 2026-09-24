@@ -3,7 +3,8 @@ import { marketingChannels, type MarketingChannel } from "./marketing";
 import { getModeConfig, getScenarioTurn } from "./modes";
 import type { GameMode, GameState, MarketingChannelId } from "./types";
 
-export type Grade = "S" | "A" | "B" | "C";
+/** D は倒産（決算後に資金がマイナス）による途中終了 */
+export type Grade = "S" | "A" | "B" | "C" | "D";
 
 export type ChannelBreakdown = {
   channel: MarketingChannel;
@@ -14,6 +15,12 @@ export type ChannelBreakdown = {
 
 export type FinalReportData = {
   mode: GameMode;
+  /** 実際にプレイした年数（倒産した場合は倒産した年まで） */
+  yearsPlayed: number;
+  /** 倒産で終了したか */
+  bankrupt: boolean;
+  /** ファシリテーター操作（ターン移動）が行われ、履歴が実際の進行と一致しない可能性があるか */
+  demoOperated: boolean;
   grade: Grade;
   gradeTagline: string;
   /** なぜその評価になったのか（財務と信頼度のバランス）を説明する詳細テキスト */
@@ -59,7 +66,12 @@ function meetsSRank(fundsRatio: number, finalTrust: number): boolean {
  */
 const FUNDS_RATIO_CAP = 3;
 
-function gradeFor(fundsRatio: number, finalTrust: number): Grade {
+function gradeFor(
+  fundsRatio: number,
+  finalTrust: number,
+  bankrupt: boolean,
+): Grade {
+  if (bankrupt) return "D";
   if (meetsSRank(fundsRatio, finalTrust)) return "S";
 
   const composite = Math.min(fundsRatio, FUNDS_RATIO_CAP) * 20 + finalTrust;
@@ -68,12 +80,45 @@ function gradeFor(fundsRatio: number, finalTrust: number): Grade {
   return "C";
 }
 
-const gradeTaglines: Record<Grade, string> = {
-  S: "業界内でも突出した経営判断でした。顧客からほぼ全幅の信頼を得たうえで、財務も大きく伸ばしています。",
-  A: "堅実かつ機動力のある経営でした。資金・信頼度ともにバランス良く伸ばせています。",
-  B: "平均的な経営判断でした。基礎は固められていますが、投資判断でさらに伸ばせる余地があります。",
-  C: "厳しい5年間でした。資金・信頼度のいずれか、あるいは両方が伸び悩む結果になっています。",
-};
+function gradeTagline(grade: Grade, years: number): string {
+  switch (grade) {
+    case "S":
+      return "業界内でも突出した経営判断でした。顧客からほぼ全幅の信頼を得たうえで、財務も大きく伸ばしています。";
+    case "A":
+      return "堅実かつ機動力のある経営でした。資金・信頼度ともにバランス良く伸ばせています。";
+    case "B":
+      return "平均的な経営判断でした。基礎は固められていますが、投資判断でさらに伸ばせる余地があります。";
+    case "C":
+      return `厳しい${years}年間でした。資金・信頼度のいずれか、あるいは両方が伸び悩む結果になっています。`;
+    case "D":
+      return `${years}年目の決算で資金が尽き、倒産しました。受注につながらない投資と固定費が、手元資金を上回ってしまいました。`;
+  }
+}
+
+/** 倒産時の評価理由。資金繰りの観点から何が起きたかを説明する */
+function buildBankruptcyReason(state: GameState): string {
+  const cfg = getModeConfig(state.mode);
+  const history = state.marketingHistory;
+  const marketingSpend = history.reduce((sum, h) => sum + h.spend, 0);
+  const researchSpend = state.researchPurchases.reduce(
+    (sum, p) => sum + p.cost,
+    0,
+  );
+  const outcomes = Object.values(state.dealOutcomes);
+  const won = outcomes.filter((o) => o === "won").length;
+  const usd = (n: number) =>
+    `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US")}`;
+
+  return `${state.turn}年目の決算後、資金は${usd(state.availableFunds)}（初期資金 ${usd(
+    cfg.initialFunds,
+  )}）となり倒産しました。この間のマーケティング投資は${usd(
+    marketingSpend,
+  )}、市場調査費は${usd(researchSpend)}で、提案${outcomes.length}件のうち受注は${won}件でした。B2B では受注額が入る前に固定費と販促費が出ていくため、「当たる投資」に絞れないまま支出を続けると資金繰りが先に行き詰まります。${
+    cfg.minSynergySpend > 0
+      ? `${cfg.label}では対応チャネルへ${usd(cfg.minSynergySpend)}以上の投資が受注条件になるため、資金が細るほど受注が遠のく悪循環に注意が必要です。`
+      : ""
+  }`;
+}
 
 type PerformanceTier = "excellent" | "good" | "flat" | "poor";
 
@@ -207,7 +252,7 @@ function buildStyle(
     return {
       label: "予算未活用型",
       commentary:
-        "5年間を通じてマーケティング予算をほとんど確定しませんでした。守りの経営でしたが、引き合い拡大や信頼度向上の機会を逃した可能性があります。",
+        "プレイ期間を通じてマーケティング予算をほとんど投じませんでした。守りの経営でしたが、引き合い拡大や信頼度向上の機会を逃した可能性があります。",
     };
   }
 
@@ -293,18 +338,19 @@ export function buildFinalReport(state: GameState): FinalReportData {
 
   const cfg = getModeConfig(state.mode);
   const fundsRatio = state.availableFunds / cfg.initialFunds;
-  const grade = gradeFor(fundsRatio, state.trustScore);
+  const grade = gradeFor(fundsRatio, state.trustScore, state.bankrupt);
   const style = buildStyle(channelBreakdown, state.trustScore);
 
   return {
     mode: state.mode,
+    yearsPlayed: state.turn,
+    bankrupt: state.bankrupt,
+    demoOperated: state.demoOperated,
     grade,
-    gradeTagline: gradeTaglines[grade],
-    evaluationReason: buildEvaluationReason(
-      grade,
-      fundsRatio,
-      state.trustScore,
-    ),
+    gradeTagline: gradeTagline(grade, state.turn),
+    evaluationReason: state.bankrupt
+      ? buildBankruptcyReason(state)
+      : buildEvaluationReason(grade, fundsRatio, state.trustScore),
     finalFunds: state.availableFunds,
     initialFunds: cfg.initialFunds,
     fundsDelta: state.availableFunds - cfg.initialFunds,

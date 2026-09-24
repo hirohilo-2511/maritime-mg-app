@@ -361,6 +361,18 @@ export const customers: Customer[] = [
   },
 ];
 
+/**
+ * プレイ内容を反映した関係性スコア（0–100）。
+ * 顧客データの初期値に、受注・失注・未回答による変動を加算する。
+ */
+export function currentRelationship(
+  customer: Customer,
+  state: GameState,
+): number {
+  const delta = state.relationshipDeltas[customer.name] ?? 0;
+  return Math.max(0, Math.min(100, customer.relationship + delta));
+}
+
 /** 期待水準と提供力の差（プラス = 期待を上回る） */
 export function fitGap(
   expectations: FitScores,

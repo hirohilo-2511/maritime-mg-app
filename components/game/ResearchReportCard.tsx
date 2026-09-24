@@ -57,6 +57,7 @@ export function ResearchReportCard({
   purchasedTurn,
   available,
   affordable,
+  unaffordableReason,
   onPurchase,
 }: {
   report: ResearchReport;
@@ -65,8 +66,10 @@ export function ResearchReportCard({
   purchasedTurn?: number;
   /** 現在のターンで購入可能か */
   available: boolean;
-  /** 資金が足りているか */
+  /** 資金が足りているか（確定済み配分を差し引いた残額で判定） */
   affordable: boolean;
+  /** 購入できない理由（ボタンの下に常時表示する） */
+  unaffordableReason?: string;
   onPurchase: () => void;
 }) {
   const { money } = useMoney();
@@ -142,16 +145,23 @@ export function ResearchReportCard({
               !available
                 ? `${report.availableFrom}年目以降に購入できます`
                 : !affordable
-                  ? "資金が不足しています"
+                  ? unaffordableReason
                   : undefined
             }
           >
             {!available
               ? `${report.availableFrom}年目以降に公開`
               : !affordable
-                ? "資金不足"
+                ? "購入できません"
                 : `${money(report.cost)} で購入する`}
           </Button>
+          {/* 無効化したボタンのツールチップは端末によって表示されないため、理由を本文で示す */}
+          {available && !affordable && unaffordableReason ? (
+            <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-rose-600">
+              <Icon name="alert" className="mt-0.5 h-3 w-3 shrink-0" />
+              {unaffordableReason}
+            </p>
+          ) : null}
         </>
       )}
     </li>

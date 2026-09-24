@@ -31,6 +31,15 @@ export type GameState = {
   dealOutcomes: Record<string, DealOutcome>;
   /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
   gameCompleted: boolean;
+  /** 決算後に資金がマイナスになり、倒産でゲームが終了したか */
+  bankrupt: boolean;
+  /**
+   * 船主ごとの関係性スコアの変動（船主名 → 変動量）。
+   * 顧客データの初期値に加算して表示する。受注・失注・未回答で変わる。
+   */
+  relationshipDeltas: Record<string, number>;
+  /** ファシリテーター操作（ターン移動）が行われたか。履歴の整合性の注記に使う */
+  demoOperated: boolean;
   /** セッションに参加しているチーム名 */
   teams: string[];
 };

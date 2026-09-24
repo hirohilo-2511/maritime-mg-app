@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
@@ -23,15 +24,19 @@ function Spinner() {
 /** 「予算配分 → 提案作成 → ターン終了」の進行状況ガイド */
 function TurnSteps({
   budgetCommitted,
-  proposalDone,
+  unansweredCount,
 }: {
   budgetCommitted: boolean;
-  proposalDone: boolean;
+  unansweredCount: number;
 }) {
+  const proposalDone = unansweredCount === 0;
   const steps = [
     { label: "予算配分", done: budgetCommitted, active: !budgetCommitted },
     {
-      label: "顧客への提案作成",
+      label:
+        budgetCommitted && !proposalDone
+          ? `顧客への提案作成（残り${unansweredCount}件）`
+          : "顧客への提案作成",
       done: proposalDone,
       active: budgetCommitted && !proposalDone,
     },
@@ -151,10 +156,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     isFinalTurn,
     advanceTurn,
     canEndTurn,
-    hasProposalThisTurn,
+    unanswered,
+    unansweredPenalty,
   } = useGame();
+  const [confirmingSkip, setConfirmingSkip] = useState(false);
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+
+  // 未回答の要求がある場合は、ペナルティを確認してから終了する
+  const handleEndTurn = () => {
+    if (!state.gameCompleted && unanswered.length > 0 && !confirmingSkip) {
+      setConfirmingSkip(true);
+      return;
+    }
+    setConfirmingSkip(false);
+    advanceTurn();
+  };
+  const showSkipConfirm =
+    confirmingSkip && !state.gameCompleted && unanswered.length > 0;
 
   return (
     <div className="flex h-full flex-col bg-navy-900">
@@ -189,16 +208,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {state.gameCompleted ? (
         <div className="mx-4 mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3">
           <p className="text-[10px] font-semibold tracking-widest text-emerald-300">
-            ゲーム終了
+            {state.bankrupt ? "倒産によりゲーム終了" : "ゲーム終了"}
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-navy-200">
-            {state.totalTurns}年間のシミュレーションが完了しました
+            {state.bankrupt
+              ? `${state.turn}年目の決算で資金が尽きました`
+              : `${state.turn}年間のシミュレーションが完了しました`}
           </p>
         </div>
       ) : (
         <TurnSteps
           budgetCommitted={state.marketingCommitted}
-          proposalDone={hasProposalThisTurn}
+          unansweredCount={unanswered.length}
         />
       )}
 
@@ -220,17 +241,35 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* ターンを終了する（最重要アクション） */}
       <div className="px-3 pt-2 pb-1">
+        {showSkipConfirm ? (
+          <div className="mb-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-100">
+            <p className="font-semibold text-amber-200">
+              未回答の要求が{unanswered.length}件あります
+            </p>
+            <p className="mt-1">
+              {unanswered.map((r) => r.owner).join("、")}
+              への回答を見送ると、信頼度 {unansweredPenalty} と各船主との関係性が悪化します。失注覚悟でも提案したほうが傷は浅く済みます。
+            </p>
+            <button
+              type="button"
+              onClick={() => setConfirmingSkip(false)}
+              className="mt-1.5 font-semibold text-white underline underline-offset-2"
+            >
+              戻って提案する
+            </button>
+          </div>
+        ) : null}
         <Button
           size="lg"
           className="w-full"
-          onClick={advanceTurn}
+          onClick={handleEndTurn}
           disabled={isAdvancing || (!state.gameCompleted && !canEndTurn)}
           aria-busy={isAdvancing}
           title={
             state.gameCompleted
-              ? "5年間の総合フィードバックを表示します"
+              ? "総合フィードバックを表示します"
               : !canEndTurn
-                ? "予算配分の確定と、提案の作成（1件以上）が必要です"
+                ? "予算配分の確定（投資見送りの $0 確定も可）が必要です"
                 : isFinalTurn
                   ? "最終ターンを終了して総合フィードバックを表示します"
                   : `${state.turn}年目を終了して${state.turn + 1}年目に進みます`
@@ -244,6 +283,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           ) : state.gameCompleted ? (
             <>
               結果を見る
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </>
+          ) : showSkipConfirm ? (
+            <>
+              回答せずに終了する
               <Icon name="arrowRight" className="h-4 w-4" />
             </>
           ) : isFinalTurn ? (
@@ -260,7 +304,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Button>
         {!state.gameCompleted && !canEndTurn ? (
           <p className="mt-2 px-1 text-[11px] leading-relaxed text-navy-400">
-            予算配分の確定 → 顧客への提案作成の順に完了すると終了できます
+            マーケティング予算を確定すると終了できます（資金が足りない場合は「投資を見送る」で $0 確定できます）
           </p>
         ) : null}
       </div>

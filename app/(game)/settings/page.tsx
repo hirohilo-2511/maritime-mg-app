@@ -116,7 +116,11 @@ export default function SettingsPage() {
           description="現在の進行状況"
           icon={<Icon name="anchor" className="h-5 w-5" />}
           action={
-            isFinalTurn ? (
+            state.gameCompleted ? (
+              <Badge tone={state.bankrupt ? "negative" : "positive"}>
+                {state.bankrupt ? "倒産で終了" : "終了"}
+              </Badge>
+            ) : isFinalTurn ? (
               <Badge tone="warning">最終ターン</Badge>
             ) : (
               <Badge tone="info">進行中</Badge>
@@ -168,7 +172,11 @@ export default function SettingsPage() {
         <CardBody>
           <SettingRow
             label="総ターン数"
-            description={`ターンデータは${MAX_TURNS}年分まで用意されています。進行済みのターンより短くはできません。`}
+            description={
+              state.gameCompleted
+                ? "ゲームが終了しているため変更できません（終了後に延長すると、同じ年の案件を二重に受注できてしまうため）。"
+                : `ターンデータは${MAX_TURNS}年分まで用意されています。進行済みのターンより短くはできません。`
+            }
           >
             <Segmented
               ariaLabel="総ターン数"
@@ -179,9 +187,11 @@ export default function SettingsPage() {
                 .map((n) => ({
                   value: n,
                   label: `${n}年`,
-                  disabled: n < state.turn,
+                  disabled: state.gameCompleted || n < state.turn,
                   title:
-                    n < state.turn
+                    state.gameCompleted
+                      ? "ゲーム終了後は変更できません"
+                      : n < state.turn
                       ? `${state.turn}年目まで進行済みのため選択できません`
                       : undefined,
                 }))}
@@ -309,7 +319,7 @@ export default function SettingsPage() {
         <CardBody>
           <SettingRow
             label="ターンの移動"
-            description="決算を行わずにターンだけを移動します。資金と信頼度は変化しません（デモ用）。"
+            description="決算を行わずにターンだけを移動します。資金と信頼度は変化しません（デモ用）。移動したターンの予算確定・提案状況はリセットされ、最終レポートにはデモ操作ありと注記されます。"
           >
             <Segmented
               ariaLabel="ターンの移動"

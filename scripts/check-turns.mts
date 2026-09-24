@@ -145,12 +145,16 @@ const clamped = advanceGameState({
   trustScore: 98,
   marketingPlan: maxPlan,
   marketingCommitted: true,
+  // 未回答ペナルティを除外するため、1年目の要求はすべて回答済みとする
+  dealOutcomes: Object.fromEntries(
+    getTurnData(1).requests.map((r) => [r.id, "won" as const]),
+  ),
 });
 console.log(
   `信頼度98 + 決算6 + マーケ${maxOutcome.trustDelta} → ${clamped.state.trustScore}（100で上限クランプ）`,
 );
 console.log(
-  `資金500,000 で ${fmt(maxOutcome.spend)} 投資 → ${fmt(clamped.state.availableFunds)}（マイナス許容）`,
+  `資金500,000 で ${fmt(maxOutcome.spend)} 投資 → ${fmt(clamped.state.availableFunds)}（倒産=${clamped.bankrupt} / ターン ${clamped.state.turn}年目で終了）`,
 );
 
 // --- 5. 表示通貨の変換 ----------------------------------------------------

@@ -24,6 +24,7 @@ const gradeTone: Record<Grade, string> = {
   A: "bg-emerald-500 text-white",
   B: "bg-sea-500 text-white",
   C: "bg-navy-400 text-white",
+  D: "bg-rose-600 text-white",
 };
 
 /** 最終ターン終了後に表示する総合フィードバック（リザルト）ダッシュボード */
@@ -46,8 +47,10 @@ export function FinalReport() {
       <Card>
         <div className="bg-navy-900 px-6 py-8 text-white sm:px-8">
           <p className="text-[10px] font-semibold tracking-widest text-navy-400">
-            FINAL REPORT — {modeConfig.label} · {state.totalTurns}
-            年間のシミュレーション終了
+            FINAL REPORT — {modeConfig.label} ·{" "}
+            {report.bankrupt
+              ? `${report.yearsPlayed}年目で倒産`
+              : `${report.yearsPlayed}年間のシミュレーション終了`}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-5">
             <span
@@ -81,6 +84,12 @@ export function FinalReport() {
               {report.evaluationReason}
             </p>
           </details>
+
+          {report.demoOperated ? (
+            <p className="mt-3 max-w-2xl text-[11px] leading-relaxed text-amber-200">
+              ※ プレイ中にファシリテーター操作（ターンの移動）が行われたため、履歴や指標が実際の進行と一致しない場合があります。
+            </p>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-2 gap-px bg-navy-100 sm:grid-cols-4">
@@ -132,7 +141,7 @@ export function FinalReport() {
       <Card>
         <CardHeader
           title="投資傾向の分析"
-          description="5年間の予算配分から見えるプレイスタイル"
+          description={`${report.yearsPlayed}年間の予算配分から見えるプレイスタイル`}
           icon={<Icon name="trendUp" className="h-5 w-5" />}
           action={<Badge tone="info">{report.styleLabel}</Badge>}
         />
@@ -165,7 +174,10 @@ export function FinalReport() {
       </Card>
 
       {report.b2bMetrics ? (
-        <B2bMetricsSection metrics={report.b2bMetrics} />
+        <B2bMetricsSection
+          metrics={report.b2bMetrics}
+          yearsPlayed={report.yearsPlayed}
+        />
       ) : (
         <Card>
           <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -248,7 +260,13 @@ const formatPct = (v: number | null, signed = false) =>
   v === null ? "—" : `${signed && v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
 
 /** 実践編のみ：ROI・CPA などの B2B 指標と、その意味を学ぶ解説 */
-function B2bMetricsSection({ metrics }: { metrics: B2bMetrics }) {
+function B2bMetricsSection({
+  metrics,
+  yearsPlayed,
+}: {
+  metrics: B2bMetrics;
+  yearsPlayed: number;
+}) {
   const { money } = useMoney();
   const moneyOrDash = (v: number | null) => (v === null ? "—" : money(v));
 
@@ -305,7 +323,7 @@ function B2bMetricsSection({ metrics }: { metrics: B2bMetrics }) {
     <Card>
       <CardHeader
         title="B2B マーケティング指標"
-        description="5年間の投資対効果を、実務で使われる KPI で振り返る"
+        description={`${yearsPlayed}年間の投資対効果を、実務で使われる KPI で振り返る`}
         icon={<Icon name="trendUp" className="h-5 w-5" />}
         action={<Badge tone="warning">実践編</Badge>}
       />
