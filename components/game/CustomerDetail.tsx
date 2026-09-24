@@ -7,11 +7,12 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { ProposalAction } from "@/components/game/ProposalAction";
 import { useMoney } from "@/components/game/SettingsProvider";
+import { getChannel } from "@/lib/marketing";
 import {
   fitAxes,
   shortfallAxes,
-  untilTurn,
   type Customer,
+  type CustomerDeal,
   type DealStatus,
   type FitScores,
 } from "@/lib/customers";
@@ -20,12 +21,14 @@ import type { ShipownerRequest } from "@/lib/types";
 const dealStatus: Record<DealStatus, { label: string; tone: BadgeTone }> = {
   won: { label: "受注", tone: "positive" },
   lost: { label: "失注", tone: "negative" },
-  pending: { label: "進行中", tone: "warning" },
+  ignored: { label: "未回答", tone: "neutral" },
+  pending: { label: "対応待ち", tone: "warning" },
 };
 
 export function CustomerDetail({
   customer,
   relationship,
+  deals,
   capability,
   turn,
   activeRequest,
@@ -33,18 +36,19 @@ export function CustomerDetail({
   customer: Customer;
   /** プレイ内容を反映した現在の関係性スコア */
   relationship: number;
+  /** この船主との取引・提案履歴 */
+  deals: CustomerDeal[];
   capability: FitScores;
   turn: number;
   /** 今ターン、この船主から出ている引き合い */
   activeRequest?: ShipownerRequest;
 }) {
   const { money } = useMoney();
-  const deals = untilTurn(customer.deals, turn);
-  const logs = untilTurn(customer.logs, turn).reverse();
+
   const shortfalls = shortfallAxes(customer.expectations, capability);
   const wonTotal = deals
     .filter((d) => d.status === "won")
-    .reduce((sum, d) => sum + d.amount, 0);
+    .reduce((sum, d) => sum + d.revenue, 0);
   const fleetTotal = customer.fleet.reduce((sum, f) => sum + f.count, 0);
 
   return (
@@ -192,79 +196,70 @@ export function CustomerDetail({
         </Card>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {/* 購買履歴 */}
-        <Card>
-          <CardHeader
-            title="購買・商談履歴"
-            description={`${deals.length}件`}
-            icon={<Icon name="budget" className="h-5 w-5" />}
-          />
-          {deals.length === 0 ? (
-            <CardBody>
-              <p className="rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] text-navy-500">
-                まだ取引履歴がありません。
-              </p>
-            </CardBody>
-          ) : (
-            <ul className="divide-y divide-navy-100">
-              {deals.map((deal, index) => {
-                const status = dealStatus[deal.status];
-                return (
-                  <li
-                    key={`${deal.turn}-${index}`}
-                    className="flex items-start justify-between gap-3 px-5 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="tabular text-[11px] font-semibold text-navy-400">
-                          {deal.turn}年目
-                        </span>
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      </div>
-                      <p className="mt-1 text-[13px] leading-relaxed text-navy-700">
-                        {deal.title}
-                      </p>
+      {/* 取引履歴（プレイヤーの提案結果） */}
+      <Card>
+        <CardHeader
+          title="取引・提案履歴"
+          description={`${deals.length}件 · あなたの提案結果`}
+          icon={<Icon name="budget" className="h-5 w-5" />}
+        />
+        {deals.length === 0 ? (
+          <CardBody>
+            <p className="rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] text-navy-500">
+              まだこの船主からの引き合いはありません。
+            </p>
+          </CardBody>
+        ) : (
+          <ul className="divide-y divide-navy-100">
+            {[...deals].reverse().map((deal) => {
+              const status = dealStatus[deal.status];
+              const p = deal.proposal;
+              return (
+                <li
+                  key={deal.requestId}
+                  className="flex items-start justify-between gap-3 px-5 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="tabular text-[11px] font-semibold text-navy-400">
+                        {deal.turn}年目
+                      </span>
+                      <Badge tone={status.tone}>{status.label}</Badge>
                     </div>
-                    <p className="tabular shrink-0 text-[13px] font-bold text-navy-900">
-                      {money(deal.amount)}
+                    <p className="mt-1 text-[13px] leading-relaxed text-navy-700">
+                      {deal.title}
                     </p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-
-        {/* 商談ログ */}
-        <Card>
-          <CardHeader
-            title="商談ログ"
-            description="新しい順"
-            icon={<Icon name="book" className="h-5 w-5" />}
-          />
-          {logs.length === 0 ? (
-            <CardBody>
-              <p className="rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] text-navy-500">
-                まだ商談記録がありません。
-              </p>
-            </CardBody>
-          ) : (
-            <ul className="divide-y divide-navy-100">
-              {logs.map((log, index) => (
-                <li key={`${log.turn}-${index}`} className="px-5 py-3">
-                  <p className="tabular text-[11px] font-semibold text-navy-400">
-                    {log.turn}年目 {log.quarter}
-                  </p>
-                  <p className="mt-1 text-[13px] leading-relaxed text-navy-600">
-                    {log.summary}
+                    {p ? (
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-navy-400">
+                        訴求「{p.focusPriority}」（第{p.priorityRank + 1}優先）·
+                        裏付け: {getChannel(p.requiredChannel).name} 配分比{" "}
+                        {Math.round(p.channelShare * 100)}%
+                        {p.won
+                          ? p.priorityRank > 0
+                            ? ` · 受注額は想定の${Math.round((p.revenue / p.requestBudget) * 100)}%`
+                            : ""
+                          : ` · あと ${money(p.shortfall)} で受注できた`}
+                      </p>
+                    ) : deal.status === "ignored" ? (
+                      <p className="mt-0.5 text-[11px] text-rose-500">
+                        回答しなかったため、関係性と信頼度が低下しました。
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="tabular shrink-0 text-right text-[13px] font-bold text-navy-900">
+                    {deal.status === "won"
+                      ? money(deal.revenue)
+                      : money(deal.budget)}
+                    <span className="block text-[10px] font-medium text-navy-400">
+                      {deal.status === "won" ? "受注額" : "想定予算"}
+                    </span>
                   </p>
                 </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

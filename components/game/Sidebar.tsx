@@ -91,6 +91,8 @@ function badgeFor(
   if (item.showRequestCount) {
     return { text: String(turnData.requests.length), tone: "info" };
   }
+  // 終了後は「要対応」の表示を出さない
+  if (state.gameCompleted) return null;
   if (item.showBudgetStatus && !state.marketingCommitted) {
     return { text: "未確定", tone: "warning" };
   }
@@ -206,8 +208,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* このターンの進行ガイド */}
       {state.gameCompleted ? (
-        <div className="mx-4 mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3">
-          <p className="text-[10px] font-semibold tracking-widest text-emerald-300">
+        <div
+          className={`mx-4 mb-4 rounded-lg border px-3 py-3 ${
+            state.bankrupt
+              ? "border-rose-500/40 bg-rose-500/10"
+              : "border-emerald-500/30 bg-emerald-500/10"
+          }`}
+        >
+          <p
+            className={`text-[10px] font-semibold tracking-widest ${
+              state.bankrupt ? "text-rose-300" : "text-emerald-300"
+            }`}
+          >
             {state.bankrupt ? "倒産によりゲーム終了" : "ゲーム終了"}
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-navy-200">

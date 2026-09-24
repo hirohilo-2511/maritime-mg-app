@@ -20,6 +20,7 @@ import {
   type Grade,
 } from "@/lib/finalReport";
 import { company } from "@/lib/mock-data";
+import type { YearReview, YearVerdict } from "@/lib/yearlyReview";
 import { modeConfigs } from "@/lib/modes";
 import type { GameMode } from "@/lib/types";
 
@@ -190,10 +191,15 @@ export function FinalReport() {
       </Card>
 
       {report.b2bMetrics ? (
-        <B2bMetricsSection
-          metrics={report.b2bMetrics}
-          yearsPlayed={report.yearsPlayed}
-        />
+        <>
+          <B2bMetricsSection
+            metrics={report.b2bMetrics}
+            yearsPlayed={report.yearsPlayed}
+          />
+          {report.yearlyReview ? (
+            <YearlyReviewSection reviews={report.yearlyReview} />
+          ) : null}
+        </>
       ) : (
         <Card>
           <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -476,6 +482,156 @@ function B2bMetricsSection({
           </div>
         </div>
       </CardBody>
+    </Card>
+  );
+}
+
+const verdictTone: Record<YearVerdict, "positive" | "info" | "warning" | "negative"> = {
+  excellent: "positive",
+  good: "info",
+  mixed: "warning",
+  poor: "negative",
+};
+
+/** 実践編のみ：年ごとに何が効き、何を取りこぼしたのかを振り返る */
+function YearlyReviewSection({ reviews }: { reviews: YearReview[] }) {
+  const { money, moneySigned } = useMoney();
+
+  return (
+    <Card>
+      <CardHeader
+        title="年次レビュー"
+        description="年ごとの良かった点と、機会損失・効果の薄かった投資"
+        icon={<Icon name="calendar" className="h-5 w-5" />}
+        action={<Badge tone="warning">実践編</Badge>}
+      />
+      {reviews.length === 0 ? (
+        <CardBody>
+          <p className="rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] text-navy-500">
+            振り返る年の記録がありません。
+          </p>
+        </CardBody>
+      ) : (
+        <ol className="divide-y divide-navy-100">
+          {reviews.map((y) => {
+            const capture =
+              y.potentialRevenue > 0 ? y.wonRevenue / y.potentialRevenue : 0;
+            return (
+              <li key={y.turn} className="px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-navy-900">
+                      {y.turn}年目
+                    </h3>
+                    <Badge tone={verdictTone[y.verdict]}>
+                      {y.bankrupt ? "倒産" : y.verdictLabel}
+                    </Badge>
+                  </div>
+                  <p className="tabular text-[11px] text-navy-400">
+                    資金 {money(y.fundsStart)} → {money(y.fundsEnd)} · 信頼度{" "}
+                    {y.trustStart} → {y.trustEnd}
+                  </p>
+                </div>
+
+                <dl className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { label: "投資", value: money(y.investment) },
+                    {
+                      label: "受注 / 取れた上限",
+                      value: `${money(y.wonRevenue)}`,
+                      sub: `上限 ${money(y.potentialRevenue)}（${Math.round(capture * 100)}%）`,
+                    },
+                    {
+                      label: "機会損失",
+                      value: y.opportunityLoss > 0 ? moneySigned(-y.opportunityLoss) : money(0),
+                      bad: y.opportunityLoss > 0,
+                    },
+                    {
+                      label: "粗利ベース ROI",
+                      value: formatPct(y.roi, true),
+                      bad: y.roi !== null && y.roi < 0,
+                    },
+                  ].map((m) => (
+                    <div
+                      key={m.label}
+                      className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3 py-2"
+                    >
+                      <dt className="text-[10px] font-semibold tracking-wider text-navy-400">
+                        {m.label}
+                      </dt>
+                      <dd
+                        className={`tabular mt-0.5 text-[13px] font-bold ${
+                          m.bad ? "text-rose-600" : "text-navy-900"
+                        }`}
+                      >
+                        {m.value}
+                      </dd>
+                      {m.sub ? (
+                        <dd className="tabular text-[10px] text-navy-400">
+                          {m.sub}
+                        </dd>
+                      ) : null}
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] font-semibold tracking-widest text-emerald-600">
+                      良かった点
+                    </p>
+                    {y.goods.length > 0 ? (
+                      <ul className="mt-1.5 space-y-1.5">
+                        {y.goods.map((text) => (
+                          <li
+                            key={text}
+                            className="flex items-start gap-2 text-[12px] leading-relaxed text-navy-700"
+                          >
+                            <Icon
+                              name="check"
+                              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500"
+                            />
+                            {text}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1.5 text-[12px] text-navy-400">
+                        この年に目立った成果はありませんでした。
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold tracking-widest text-rose-600">
+                      改善すべき点
+                    </p>
+                    {y.bads.length > 0 ? (
+                      <ul className="mt-1.5 space-y-1.5">
+                        {y.bads.map((text) => (
+                          <li
+                            key={text}
+                            className="flex items-start gap-2 text-[12px] leading-relaxed text-navy-700"
+                          >
+                            <Icon
+                              name="alert"
+                              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500"
+                            />
+                            {text}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1.5 text-[12px] text-navy-400">
+                        取りこぼしはありませんでした。
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </Card>
   );
 }

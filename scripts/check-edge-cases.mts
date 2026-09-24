@@ -15,7 +15,9 @@ import {
 import { buildFinalReport } from "../lib/finalReport";
 import { emptyPlan } from "../lib/marketing";
 import { createInitialGameState, getModeConfig, getScenarioTurn, synergyRuleFor } from "../lib/modes";
-import { evaluateSynergy, priorityRewardRate } from "../lib/synergy";
+import { channelForPriority, evaluateSynergy, priorityRewardRate } from "../lib/synergy";
+import { customerDeals, customers } from "../lib/customers";
+import { getChannel } from "../lib/marketing";
 import { researchReports } from "../lib/research";
 import type { GameState, MarketingPlan } from "../lib/types";
 
@@ -235,6 +237,80 @@ section("重視順位による報酬差");
     );
     check("提案ログに記録", res.state.proposalLog.at(-1)?.priorityRank === rank);
   });
+}
+
+// ---------------------------------------------------------------------------
+section("年次の記録（turnLog）と年次レビュー");
+{
+  // 実践編を、年によって第1優先・第2優先・未回答を混ぜてプレイする
+  let s: GameState = createInitialGameState("advanced");
+  for (;;) {
+    const reqs = getScenarioTurn(s.turn, s.mode).requests;
+    const channels = new Set(reqs.map((r) => channelForPriority(r.priorities[0])));
+    const p = emptyPlan();
+    for (const c of channels) p[c] = 120_000;
+    s = commit(s, p);
+    reqs.forEach((r, i) => {
+      if (s.turn === 2 && i === 0) return; // 2年目の1件目は未回答
+      const focus = s.turn === 3 ? r.priorities[1] ?? r.priorities[0] : r.priorities[0];
+      const res = resolveProposal(s, r.id, focus);
+      if (res) s = res.state;
+    });
+    if (s.turn >= s.totalTurns) {
+      s = finalizeGame(s).state;
+      break;
+    }
+    s = advanceGameState(s).state;
+    if (s.gameCompleted) break;
+  }
+  check("5年分の記録", s.turnLog.length === 5, `${s.turnLog.length}`);
+  for (let i = 1; i < s.turnLog.length; i++) {
+    check(
+      `${i + 1}年目の年初資金 = 前年の年末資金`,
+      s.turnLog[i].fundsStart === s.turnLog[i - 1].fundsEnd,
+    );
+  }
+  check("最終記録の年末資金 = 最終資金", s.turnLog.at(-1)!.fundsEnd === s.availableFunds);
+  check("2年目の未回答が記録される", s.turnLog[1].unansweredRequestIds.length === 1);
+
+  const report = buildFinalReport(s);
+  const review = report.yearlyReview!;
+  check("実践編は年次レビューあり", review !== null && review.length === 5);
+  check("2年目：未回答を指摘", review[1].bads.some((t) => t.includes("回答しませんでした")));
+  check("3年目：第2優先の取りこぼしを指摘", review[2].bads.some((t) => t.includes("取りこぼし")));
+  check("1年目：満額受注を評価", review[0].goods.some((t) => t.includes("満額")));
+  check("機会損失 = 上限 − 受注", review.every((y) => y.opportunityLoss === Math.max(0, y.potentialRevenue - y.wonRevenue)));
+  check("導入編は年次レビューなし", buildFinalReport({ ...s, mode: "intro" }).yearlyReview === null);
+
+  // L：「もしも」は判定ルールと同じチャネル対応で助言する
+  const story = report.ifStory;
+  const mentioned = ["国際海事展示会", "営業員の増員・訪問", "技術セミナー", "業界誌広告", "デジタル / オンライン"].filter((n) => story.includes(n));
+  const worstPrimary = story.match(/第1優先の「(.+?)」/)?.[1];
+  check("もしも：第1優先を示す", worstPrimary !== undefined, story);
+  if (worstPrimary) {
+    const expected = getChannel(channelForPriority(worstPrimary)).name;
+    check("もしも：助言チャネルが判定ルールと一致", mentioned.length === 1 && mentioned[0] === expected, `${mentioned} vs ${expected}`);
+  }
+  console.log(`  [もしも] ${story}`);
+  console.log(`  [3年目] ${review[2].bads[0]}`);
+
+  // M：船主カルテの取引履歴はプレイ結果と一致する
+  const setouchi = customers.find((c) => c.name.startsWith("Setouchi"))!;
+  const deals = customerDeals(setouchi, s);
+  const logged = s.proposalLog.filter((p) => p.owner === setouchi.name);
+  check("取引履歴：受注件数がプレイ結果と一致", deals.filter((d) => d.status === "won").length === logged.filter((p) => p.won).length);
+  check(
+    "取引履歴：未回答が表示される",
+    deals.some((d) => d.status === "ignored") === s.turnLog.some((t) => t.unansweredRequestIds.some((id) => deals.find((d) => d.requestId === id))),
+  );
+
+  // 倒産した年までの年次レビュー
+  const bankrupt = advanceGameState(
+    commit({ ...createInitialGameState("advanced"), availableFunds: 10_000 }, emptyPlan()),
+  ).state;
+  const br = buildFinalReport(bankrupt).yearlyReview!;
+  check("倒産：倒産した年までレビュー", br.length === 1 && br[0].bankrupt);
+  check("倒産：要因を説明", br[0].bads.some((t) => t.includes("倒産")));
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

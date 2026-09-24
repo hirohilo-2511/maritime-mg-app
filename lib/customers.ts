@@ -1,4 +1,5 @@
-import type { GameState } from "./types";
+import { getScenarioTurn } from "./modes";
+import type { GameState, ProposalRecord } from "./types";
 
 /** 評価軸（期待水準と提供力を同じ 0–100 スケールで比較する） */
 export type FitAxisId = "price" | "delivery" | "fuel" | "support" | "record";
@@ -13,24 +14,6 @@ export const fitAxes: { id: FitAxisId; label: string; note: string }[] = [
 
 export type FitScores = Record<FitAxisId, number>;
 
-export type DealStatus = "won" | "lost" | "pending";
-
-/** 商談・購買履歴 1 件 */
-export type Deal = {
-  /** 発生したターン */
-  turn: number;
-  title: string;
-  amount: number;
-  status: DealStatus;
-};
-
-/** 商談ログ 1 件 */
-export type MeetingLog = {
-  turn: number;
-  quarter: string;
-  summary: string;
-};
-
 export type Customer = {
   id: string;
   /** ターンデータの船主名と一致させる（引き合いの突合に使用） */
@@ -43,8 +26,6 @@ export type Customer = {
   decisionMaker: { name: string; role: string; note: string };
   /** 船主が求める水準 */
   expectations: FitScores;
-  deals: Deal[];
-  logs: MeetingLog[];
 };
 
 /**
@@ -84,38 +65,6 @@ export const customers: Customer[] = [
       support: 95,
       record: 75,
     },
-    deals: [
-      {
-        turn: 1,
-        title: "内航コンテナ船 749GT × 4隻 機関室モニタリング",
-        amount: 320_000,
-        status: "won",
-      },
-      {
-        turn: 2,
-        title: "姉妹船 2隻への追加導入",
-        amount: 180_000,
-        status: "won",
-      },
-    ],
-    logs: [
-      {
-        turn: 1,
-        quarter: "Q1",
-        summary:
-          "省人化のニーズをヒアリング。国内保守拠点からの2時間以内到着を条件に提示。",
-      },
-      {
-        turn: 1,
-        quarter: "Q3",
-        summary: "初号船の納入完了。機関長からの操作性評価が高く、追加導入の打診あり。",
-      },
-      {
-        turn: 2,
-        quarter: "Q2",
-        summary: "姉妹船2隻の追加受注。グループ標準採用の検討に入る意向を確認。",
-      },
-    ],
   },
   {
     id: "pacific",
@@ -139,49 +88,6 @@ export const customers: Customer[] = [
       support: 45,
       record: 60,
     },
-    deals: [
-      {
-        turn: 1,
-        title: "ばら積み船 82,000DWT × 3隻 主機補機パッケージ",
-        amount: 1_200_000,
-        status: "pending",
-      },
-      {
-        turn: 3,
-        title: "同案件 — 欧州系A社に決定",
-        amount: 1_050_000,
-        status: "lost",
-      },
-      {
-        turn: 4,
-        title: "コンテナ船 8,000TEU × 2隻",
-        amount: 1_350_000,
-        status: "pending",
-      },
-    ],
-    logs: [
-      {
-        turn: 1,
-        quarter: "Q2",
-        summary: "初回技術提案。CII 格付 B 以上の達成見込みを提示し好評価。",
-      },
-      {
-        turn: 2,
-        quarter: "Q2",
-        summary:
-          "競合A社の15%値下げを受け、ライフサイクルコスト比較資料を再提出。",
-      },
-      {
-        turn: 3,
-        quarter: "Q1",
-        summary: "価格差を埋めきれず失注。関係維持のため四半期ごとの訪問を継続。",
-      },
-      {
-        turn: 4,
-        quarter: "Q2",
-        summary: "競合の納期遅延を理由に再打診。納期確約が決め手になる見込み。",
-      },
-    ],
   },
   {
     id: "nordic",
@@ -205,38 +111,6 @@ export const customers: Customer[] = [
       support: 70,
       record: 80,
     },
-    deals: [
-      {
-        turn: 1,
-        title: "スクラバー換装 + 排出量モニタリング機器",
-        amount: 780_000,
-        status: "pending",
-      },
-      {
-        turn: 5,
-        title: "アンモニア燃料船 45,000DWT × 3隻 共同開発",
-        amount: 2_600_000,
-        status: "pending",
-      },
-    ],
-    logs: [
-      {
-        turn: 1,
-        quarter: "Q3",
-        summary: "EU ETS 対応の要件を確認。計測精度の第三者認証の有無を質問された。",
-      },
-      {
-        turn: 3,
-        quarter: "Q2",
-        summary:
-          "ノルウェーの補助金（上限25%）の申請代行を提案。価格以外の評価点として認識された。",
-      },
-      {
-        turn: 5,
-        quarter: "Q1",
-        summary: "次世代燃料プロジェクトの共同開発パートナー候補として打診を受ける。",
-      },
-    ],
   },
   {
     id: "aegean",
@@ -260,44 +134,6 @@ export const customers: Customer[] = [
       support: 50,
       record: 90,
     },
-    deals: [
-      {
-        turn: 2,
-        title: "ハンディマックス 38,000DWT × 6隻 レトロフィット",
-        amount: 1_450_000,
-        status: "pending",
-      },
-      {
-        turn: 3,
-        title: "第1期 4隻分",
-        amount: 720_000,
-        status: "won",
-      },
-      {
-        turn: 4,
-        title: "第2期 4隻分 + 長期メンテナンス契約",
-        amount: 960_000,
-        status: "won",
-      },
-    ],
-    logs: [
-      {
-        turn: 2,
-        quarter: "Q1",
-        summary:
-          "船隊18隻の CII 格付シミュレーションを提出。改善幅の根拠データを追加要求された。",
-      },
-      {
-        turn: 3,
-        quarter: "Q2",
-        summary: "第1期として4隻分を受注。残り4隻は実績を見て判断する方針。",
-      },
-      {
-        turn: 4,
-        quarter: "Q1",
-        summary: "第1期の改善実績が予測値を上回り、第2期と保守契約をまとめて締結。",
-      },
-    ],
   },
   {
     id: "gulf",
@@ -321,43 +157,6 @@ export const customers: Customer[] = [
       support: 95,
       record: 85,
     },
-    deals: [
-      {
-        turn: 3,
-        title: "VLCC 300,000DWT × 2隻 排出量モニタリング一式",
-        amount: 1_800_000,
-        status: "pending",
-      },
-      {
-        turn: 5,
-        title: "同案件 — 受注",
-        amount: 1_800_000,
-        status: "won",
-      },
-      {
-        turn: 5,
-        title: "追加 4隻 + グループ標準採用の検討",
-        amount: 3_400_000,
-        status: "pending",
-      },
-    ],
-    logs: [
-      {
-        turn: 3,
-        quarter: "Q4",
-        summary: "新造VLCC向けに提案。中東拠点の設置計画の提示が最終選考の条件に。",
-      },
-      {
-        turn: 4,
-        quarter: "Q2",
-        summary: "ドバイでのサポート拠点開設計画を提示。最終選考に残る。",
-      },
-      {
-        turn: 5,
-        quarter: "Q1",
-        summary: "初回2隻を受注。グループ全体への標準採用の検討が始まる。",
-      },
-    ],
   },
 ];
 
@@ -392,10 +191,55 @@ export function shortfallAxes(
     .filter((id) => fitGap(expectations, capability, id) <= -10);
 }
 
-/** 現在のターンまでに発生した商談・ログに絞る */
-export function untilTurn<T extends { turn: number }>(
-  items: T[],
-  turn: number,
-): T[] {
-  return items.filter((item) => item.turn <= turn);
+export type DealStatus = "won" | "lost" | "ignored" | "pending";
+
+/** 船主との取引履歴 1 件（プレイヤーの提案結果から組み立てる） */
+export type CustomerDeal = {
+  turn: number;
+  requestId: string;
+  title: string;
+  /** 想定予算 */
+  budget: number;
+  /** 受注額（受注時のみ） */
+  revenue: number;
+  status: DealStatus;
+  /** 提案した場合の記録 */
+  proposal: ProposalRecord | null;
+};
+
+/**
+ * その船主から届いた要求と、プレイヤーの対応結果を年順に返す。
+ * - 提案済み → 受注 / 失注
+ * - 過去の年で未提案 → 未回答
+ * - 今年で未提案 → 対応待ち（ゲーム終了後は未回答）
+ */
+export function customerDeals(
+  customer: Customer,
+  state: GameState,
+): CustomerDeal[] {
+  const deals: CustomerDeal[] = [];
+  for (let turn = 1; turn <= state.turn; turn++) {
+    for (const r of getScenarioTurn(turn, state.mode).requests) {
+      if (r.owner !== customer.name) continue;
+      const proposal =
+        state.proposalLog.find((p) => p.requestId === r.id) ?? null;
+      const status: DealStatus = proposal
+        ? proposal.won
+          ? "won"
+          : "lost"
+        : turn < state.turn || state.gameCompleted
+          ? "ignored"
+          : "pending";
+      deals.push({
+        turn,
+        requestId: r.id,
+        title: `${r.vesselType} — ${r.requirement}`,
+        budget: r.budget,
+        revenue: proposal?.revenue ?? 0,
+        status,
+        proposal,
+      });
+    }
+  }
+  return deals;
 }

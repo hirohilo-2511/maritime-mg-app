@@ -7,6 +7,7 @@ import type {
   GameState,
   MarketingOutcome,
   ShipownerRequest,
+  TurnRecord,
   TurnSettlement,
 } from "./types";
 
@@ -118,6 +119,52 @@ export function purchaseResearch(
   };
 }
 
+/**
+ * その年の年初の資金・信頼度。前年の締めの記録から引き継ぐ（1年目は難易度の初期値）。
+ * ターン移動（デモ操作）後は実際の値と一致しない場合がある。
+ */
+function yearStart(state: GameState): { funds: number; trust: number } {
+  const prev = state.turnLog.at(-1);
+  if (prev && prev.turn === state.turn - 1) {
+    return { funds: prev.fundsEnd, trust: prev.trustEnd };
+  }
+  const cfg = getModeConfig(state.mode);
+  return state.turn === 1
+    ? { funds: cfg.initialFunds, trust: cfg.initialTrust }
+    : { funds: state.availableFunds, trust: state.trustScore };
+}
+
+/** 年の締めの記録を作る */
+function turnRecord(
+  state: GameState,
+  closing: ReturnType<typeof closeTurn>,
+  settlement: TurnSettlement | null,
+  fundsEnd: number,
+  trustEnd: number,
+  bankrupt: boolean,
+): TurnRecord {
+  const start = yearStart(state);
+  return {
+    turn: state.turn,
+    fundsStart: start.funds,
+    trustStart: start.trust,
+    fundsEnd,
+    trustEnd,
+    wonRevenue: state.proposalLog
+      .filter((p) => p.turn === state.turn)
+      .reduce((sum, p) => sum + p.revenue, 0),
+    settlementRevenue: settlement?.revenue ?? 0,
+    settlementExpense: settlement?.expense ?? 0,
+    settlementTrust: settlement?.trustDelta ?? 0,
+    marketingSpend: closing.marketing.spend,
+    marketingTrust: closing.marketing.trustDelta,
+    researchSpend: closing.researchSpend,
+    unansweredRequestIds: closing.unanswered.map((r) => r.id),
+    unansweredPenalty: closing.penalty,
+    bankrupt,
+  };
+}
+
 /** ターン終了時の共通処理：確定済み配分の実行と、未回答要求へのペナルティ */
 function closeTurn(state: GameState) {
   // 確定していない配分は実行されない
@@ -185,14 +232,19 @@ export function advanceGameState(state: GameState): AdvanceResult {
 
   const funds = state.availableFunds + revenue - expense - marketing.spend;
   const bankrupt = funds < 0;
+  const trust = clampTrust(
+    state.trustScore + trustDelta + marketing.trustDelta + closing.penalty,
+  );
 
   const closed: GameState = {
     ...state,
     availableFunds: funds,
-    trustScore: clampTrust(
-      state.trustScore + trustDelta + marketing.trustDelta + closing.penalty,
-    ),
+    trustScore: trust,
     relationshipDeltas: closing.relationshipDeltas,
+    turnLog: [
+      ...state.turnLog,
+      turnRecord(state, closing, settlement, funds, trust, bankrupt),
+    ],
     marketingHistory: [
       ...state.marketingHistory,
       {
@@ -252,15 +304,20 @@ export function finalizeGame(state: GameState): FinalizeResult {
   if (state.gameCompleted) return { state, marketing };
 
   const funds = state.availableFunds - marketing.spend;
+  const trust = clampTrust(
+    state.trustScore + marketing.trustDelta + closing.penalty,
+  );
 
   return {
     state: {
       ...state,
       availableFunds: funds,
-      trustScore: clampTrust(
-        state.trustScore + marketing.trustDelta + closing.penalty,
-      ),
+      trustScore: trust,
       relationshipDeltas: closing.relationshipDeltas,
+      turnLog: [
+        ...state.turnLog,
+        turnRecord(state, closing, null, funds, trust, funds < 0),
+      ],
       marketingCommitted: false,
       marketingHistory: [
         ...state.marketingHistory,

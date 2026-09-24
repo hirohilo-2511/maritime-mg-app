@@ -36,7 +36,7 @@ function Row({
  * GameProvider の turnResult が入っているあいだ表示される。
  */
 export function TurnResultModal() {
-  const { turnResult, dismissTurnResult } = useGame();
+  const { state, turnResult, dismissTurnResult } = useGame();
   const { money, moneySigned } = useMoney();
   const router = useRouter();
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -75,6 +75,16 @@ export function TurnResultModal() {
     trustAfter,
   } = turnResult;
   const netIncome = settlement.revenue - settlement.expense - marketing.spend;
+  // シナリオの決算説明（既存事業）に、この年の実際の提案結果を加える
+  const proposalHighlights = state.proposalLog
+    .filter((p) => p.turn === fromTurn)
+    .map((p) =>
+      p.won
+        ? `${p.owner} から受注（${money(p.revenue)}${
+            p.priorityRank > 0 ? `・第${p.priorityRank + 1}優先への訴求` : ""
+          }）`
+        : `${p.owner} への提案は失注`,
+    );
   // クランプ後の実際の変動量を表示する
   const trustDelta = trustAfter - trustBefore;
 
@@ -224,7 +234,7 @@ export function TurnResultModal() {
             主な出来事
           </p>
           <ul className="mt-2 space-y-2">
-            {settlement.highlights.map((item) => (
+            {[...proposalHighlights, ...settlement.highlights].map((item) => (
               <li
                 key={item}
                 className="flex items-start gap-2.5 text-[13px] leading-relaxed text-navy-600"

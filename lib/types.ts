@@ -31,6 +31,8 @@ export type GameState = {
   dealOutcomes: Record<string, DealOutcome>;
   /** 提案の詳細な記録（年次レビュー・評価に使う） */
   proposalLog: ProposalRecord[];
+  /** 年ごとの収支・信頼度の記録（ターン終了時に追加。年次レビューに使う） */
+  turnLog: TurnRecord[];
   /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
   gameCompleted: boolean;
   /** 決算後に資金がマイナスになり、倒産でゲームが終了したか */
@@ -48,6 +50,31 @@ export type GameState = {
 
 /** 提案の結果。重視ポイントと投資チャネルの相性で決まる */
 export type DealOutcome = "won" | "lost";
+
+/** 1 年分（1 ターン）の締めの記録 */
+export type TurnRecord = {
+  turn: number;
+  /** 年初の資金・信頼度 */
+  fundsStart: number;
+  trustStart: number;
+  /** 決算後（最終年はマーケティング支出後）の資金・信頼度 */
+  fundsEnd: number;
+  trustEnd: number;
+  /** この年の提案で得た受注額の合計 */
+  wonRevenue: number;
+  /** 決算（最終年・倒産時以外は翌年の期初に計上される前年分） */
+  settlementRevenue: number;
+  settlementExpense: number;
+  settlementTrust: number;
+  marketingSpend: number;
+  marketingTrust: number;
+  researchSpend: number;
+  /** 回答しなかった船主要求 */
+  unansweredRequestIds: string[];
+  unansweredPenalty: number;
+  /** この年の決算で倒産したか */
+  bankrupt: boolean;
+};
 
 /** 提案 1 件の記録。判定に使った配分の状況も残し、振り返りで理由を説明できるようにする */
 export type ProposalRecord = {

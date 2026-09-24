@@ -1,6 +1,8 @@
 import { buildB2bMetrics, type B2bMetrics } from "./b2bMetrics";
-import { marketingChannels, type MarketingChannel } from "./marketing";
-import { getModeConfig, getScenarioTurn } from "./modes";
+import { getChannel, marketingChannels, type MarketingChannel } from "./marketing";
+import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
+import { additionalSpendNeeded, channelForPriority } from "./synergy";
+import { buildYearlyReview, type YearReview } from "./yearlyReview";
 import type { GameMode, GameState, MarketingChannelId } from "./types";
 
 /** D は倒産（決算後に資金がマイナス）による途中終了 */
@@ -41,6 +43,8 @@ export type FinalReportData = {
   primaryHitRate: number;
   /** 実践編のみ：ROI・CPA などの B2B マーケティング指標 */
   b2bMetrics: B2bMetrics | null;
+  /** 実践編のみ：年ごとの良かった点・改善点 */
+  yearlyReview: YearReview[] | null;
 };
 
 /**
@@ -317,30 +321,60 @@ function buildStyle(
   };
 }
 
+/**
+ * 「もしも、あの時こうしていたら」。
+ * 最も取りこぼしの大きかった案件（未回答・失注・第1優先以外での受注）を選び、
+ * シナジー判定と同じ対応表（訴求ポイント → チャネル）に基づいて、どうすれば満額だったかを示す。
+ */
 function buildIfStory(state: GameState): string {
-  const history = state.marketingHistory;
-  if (history.length === 0) {
-    return "マーケティング予算を一度も確定しなかったため、投資による『もしも』を語る材料がありません。次にプレイする際は、まず1年目の予算配分から着手してみてください。";
-  }
-
-  // 技術セミナーへの投資がもっとも手薄だったターンを探す
-  const weakest = [...history].sort(
-    (a, b) => a.plan.seminar - b.plan.seminar,
-  )[0];
-  const turnData = getScenarioTurn(weakest.turn, state.mode);
-  const bigRequest = turnData?.requests
-    .filter((r) => r.priorities.length > 0)
-    .sort((a, b) => b.budget - a.budget)[0];
-
-  if (!bigRequest) {
-    return "投資配分に大きな偏りは見られませんでした。次のプレイでは、あえて1つのチャネルに集中投資してみると違う展開が見えるかもしれません。";
-  }
-
   const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
+  if (state.turnLog.length === 0 && state.proposalLog.length === 0) {
+    return "ターンを一度も終えていないため、『もしも』を語る材料がありません。次にプレイする際は、まず1年目の予算配分と提案から着手してみてください。";
+  }
 
-  return `もし${weakest.turn}年目に技術セミナーへの投資をもう一段強化していれば、${bigRequest.owner}（想定予算 ${usd(
-    bigRequest.budget,
-  )}）が重視していた「${bigRequest.priorities[0]}」の訴求力が高まり、あの案件の受注確度をさらに引き上げられたかもしれません。`;
+  type Miss = { turn: number; owner: string; budget: number; loss: number; primary: string; detail: string };
+  const misses: Miss[] = [];
+  const rule = synergyRuleFor(state.mode);
+  for (let turn = 1; turn <= state.turn; turn++) {
+    const plan = state.marketingHistory.find((h) => h.turn === turn)?.plan;
+    for (const req of getScenarioTurn(turn, state.mode).requests) {
+      const p = state.proposalLog.find((x) => x.requestId === req.id);
+      const answeredInTime = p || turn < state.turn || state.gameCompleted;
+      if (!answeredInTime) continue;
+      const loss = req.budget - (p?.revenue ?? 0);
+      if (loss <= 0) continue;
+      const primary = req.priorities[0];
+      const channel = channelForPriority(primary);
+      const needed = plan
+        ? additionalSpendNeeded(plan, channel, rule.minShare, rule.minSpend)
+        : 0;
+      const how =
+        needed > 0
+          ? `${getChannel(channel).name}への配分をあと${usd(needed)}増やし`
+          : `${getChannel(channel).name}への配分を活かして`;
+      const detail = !p
+        ? "要求に回答しないまま年を越してしまいました"
+        : p.won
+          ? `第${p.priorityRank + 1}優先「${p.focusPriority}」での受注に留まりました`
+          : `「${p.focusPriority}」での提案は裏付けが足りず失注しました`;
+      misses.push({
+        turn,
+        owner: req.owner,
+        budget: req.budget,
+        loss,
+        primary,
+        detail: `${detail}。もし${how}、第1優先の「${primary}」で訴求していれば`,
+      });
+    }
+  }
+
+  const worst = misses.sort((a, b) => b.loss - a.loss)[0];
+  if (!worst) {
+    return "すべての案件で船主の第1優先を射抜き、満額で受注しました。取りこぼしのない理想的な提案です。次は投資額を抑えて ROI を高める、あるいは実践編の厳しい条件で同じ精度を出せるかに挑戦してみてください。";
+  }
+  return `${worst.turn}年目の ${worst.owner}（想定予算 ${usd(worst.budget)}）の案件は、${worst.detail}、${usd(
+    worst.loss,
+  )}多く受注できた可能性があります。船主が最も重視する要素（第1優先）を読み、その裏付けとなるチャネルに配分を寄せることが、受注額を最大化する近道です。`;
 }
 
 const businessHints = [
@@ -417,5 +451,6 @@ export function buildFinalReport(state: GameState): FinalReportData {
     ifStory: buildIfStory(state),
     businessHint: buildBusinessHint(state),
     b2bMetrics: cfg.showAdvancedMetrics ? buildB2bMetrics(state) : null,
+    yearlyReview: cfg.showAdvancedMetrics ? buildYearlyReview(state) : null,
   };
 }

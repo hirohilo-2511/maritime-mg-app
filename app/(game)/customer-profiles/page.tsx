@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import {
   currentRelationship,
+  customerDeals,
   customers,
   ownCapability,
   shortfallAxes,
-  untilTurn,
 } from "@/lib/customers";
 
 export default function CustomerProfilesPage() {
@@ -51,7 +51,7 @@ export default function CustomerProfilesPage() {
                 customer.expectations,
                 capability,
               );
-              const wonCount = untilTurn(customer.deals, state.turn).filter(
+              const wonCount = customerDeals(customer, state).filter(
                 (d) => d.status === "won",
               ).length;
 
@@ -118,6 +118,7 @@ export default function CustomerProfilesPage() {
         <CustomerDetail
           customer={selected}
           relationship={currentRelationship(selected, state)}
+          deals={customerDeals(selected, state)}
           capability={capability}
           turn={state.turn}
           activeRequest={requestByOwner.get(selected.name)}

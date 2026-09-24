@@ -30,6 +30,7 @@ export const initialGameState: GameState = {
   proposalsCompleted: [],
   dealOutcomes: {},
   proposalLog: [],
+  turnLog: [],
   gameCompleted: false,
   bankrupt: false,
   relationshipDeltas: {},
@@ -134,8 +135,7 @@ export const turns: TurnData[] = [
       expense: 260_000,
       trustDelta: 6,
       highlights: [
-        "Setouchi Kisen との内航向け案件を受注（$320,000）",
-        "Pacific Ocean Lines は 2年目 Q2 まで検討継続",
+        "既存顧客向けの保守・部品販売が売上を下支え",
         "納期遵守により国内船主からの評価が上昇（信頼度 +6）",
       ],
     },
@@ -229,8 +229,8 @@ export const turns: TurnData[] = [
       expense: 610_000,
       trustDelta: 4,
       highlights: [
-        "Aegean Bulk Carriers のレトロフィット案件を部分受注（$720,000）",
-        "競合の値下げにより Pacific Ocean Lines 案件は失注",
+        "既存船隊のレトロフィット・部品需要が堅調に推移",
+        "競合の値下げ攻勢により、業界全体で価格競争が激化",
         "既存顧客からの追加発注により継続率が改善（信頼度 +4）",
       ],
     },
@@ -302,8 +302,7 @@ export const turns: TurnData[] = [
       expense: 880_000,
       trustDelta: 5,
       highlights: [
-        "Aegean Bulk Carriers 第2期を受注、長期保守契約も締結",
-        "Gulf Energy Shipping 向け VLCC 案件が最終選考に進出",
+        "長期保守契約の更新が進み、安定収益が拡大",
         "納期遵守率の向上により業界内の評価が上昇（信頼度 +5）",
       ],
     },
@@ -365,9 +364,9 @@ export const turns: TurnData[] = [
       expense: 1_420_000,
       trustDelta: 8,
       highlights: [
-        "Gulf Energy Shipping の VLCC 案件を受注（$1,800,000）",
+        "アフターサービス事業の拡大により売上が増加",
         "中東サポート拠点の開設費用を計上（$420,000）",
-        "大型船主からの受注により業界プレゼンスが向上（信頼度 +8）",
+        "環境規制対応の実績が評価され業界プレゼンスが向上（信頼度 +8）",
       ],
     },
     news: [
