@@ -37,27 +37,56 @@ export type FinalReportData = {
   styleCommentary: string;
   ifStory: string;
   businessHint: string;
+  /** 第1優先的中率：提示された要求のうち、第1優先に応えて受注できた割合（0–1） */
+  primaryHitRate: number;
   /** 実践編のみ：ROI・CPA などの B2B マーケティング指標 */
   b2bMetrics: B2bMetrics | null;
 };
 
 /**
- * S 評価の条件。資金と信頼度を合成した指標ではなく、両方を個別に満たす必要がある。
+ * S 評価の条件。資金と信頼度を合成した指標ではなく、すべてを個別に満たす必要がある。
  * （合成指標だと資金が大きく伸びるだけで S に届いてしまうため）
+ * 受注が続くと資金・信頼度はどちらも上限近くまで伸びるため、
+ * 「顧客の最重要ニーズ（第1優先）に応えられたか」を S の決め手にしている。
+ * 要求を読まずに固定配分で勝ち続けるプレイは A に留まる。
  */
 export const S_RANK_MIN_TRUST = 95;
 export const S_RANK_MIN_FUNDS_RATIO = 1.3;
+export const S_RANK_MIN_PRIMARY_HIT = 0.8;
+
+/**
+ * 第1優先的中率。プレイした各年に提示された要求のうち、
+ * 船主の第1優先を訴求して受注できた件数の割合（未回答・失注は外れ扱い）。
+ */
+export function primaryHitRate(state: GameState): number {
+  let offered = 0;
+  for (let turn = 1; turn <= state.turn; turn++) {
+    offered += getScenarioTurn(turn, state.mode).requests.length;
+  }
+  if (offered === 0) return 0;
+  const hits = state.proposalLog.filter(
+    (p) => p.won && p.priorityRank === 0,
+  ).length;
+  return Math.min(1, hits / offered);
+}
 
 /** S 評価の条件を満たしているか */
-function meetsSRank(fundsRatio: number, finalTrust: number): boolean {
+function meetsSRank(
+  fundsRatio: number,
+  finalTrust: number,
+  hitRate: number,
+): boolean {
   return (
-    finalTrust >= S_RANK_MIN_TRUST && fundsRatio >= S_RANK_MIN_FUNDS_RATIO
+    finalTrust >= S_RANK_MIN_TRUST &&
+    fundsRatio >= S_RANK_MIN_FUNDS_RATIO &&
+    hitRate >= S_RANK_MIN_PRIMARY_HIT
   );
 }
 
 /**
  * 総合評価（S/A/B/C）を判定する。
- * - S：信頼度 95 以上 かつ 最終資金が初期資金の 130% 以上（両方必須）
+ * - S：信頼度 95 以上 かつ 最終資金が初期資金の 130% 以上 かつ 第1優先的中率 80% 以上
+ * - D：倒産による途中終了
  * - A〜C：資金の伸び（初期資金比）と信頼度スコアを合成した指標のしきい値で判定
  * 合成指標がどれだけ高くても、S の条件を満たさなければ A に留まる。
  * 受注額がそのまま資金に入るため資金は数十倍まで伸びうる。資金だけで
@@ -69,10 +98,11 @@ const FUNDS_RATIO_CAP = 3;
 function gradeFor(
   fundsRatio: number,
   finalTrust: number,
+  hitRate: number,
   bankrupt: boolean,
 ): Grade {
   if (bankrupt) return "D";
-  if (meetsSRank(fundsRatio, finalTrust)) return "S";
+  if (meetsSRank(fundsRatio, finalTrust, hitRate)) return "S";
 
   const composite = Math.min(fundsRatio, FUNDS_RATIO_CAP) * 20 + finalTrust;
   if (composite >= 140) return "A";
@@ -151,6 +181,7 @@ function buildEvaluationReason(
   grade: Grade,
   ratio: number,
   finalTrust: number,
+  hitRate: number,
 ): string {
   const fundsPct = Math.round(ratio * 100);
   const fTier = fundsTier(ratio);
@@ -180,19 +211,30 @@ function buildEvaluationReason(
     verdict = `財務・信頼度のいずれも伸び悩んだ結果、総合評価は${grade}となりました。`;
   }
 
-  return `${trustPhrase[tTier]}。${fundsPhrase[fTier]}。${verdict}${sRankNote(
+  const hitPhrase = `船主の第1優先に応えて受注できたのは提示された要求の${Math.round(
+    hitRate * 100,
+  )}%でした。`;
+
+  return `${trustPhrase[tTier]}。${fundsPhrase[fTier]}。${verdict}${hitPhrase}${sRankNote(
     grade,
     ratio,
     finalTrust,
+    hitRate,
   )}`;
 }
 
 /** S 評価に届かなかった場合に、何が足りなかったのかを具体的に示す */
-function sRankNote(grade: Grade, ratio: number, finalTrust: number): string {
+function sRankNote(
+  grade: Grade,
+  ratio: number,
+  finalTrust: number,
+  hitRate: number,
+): string {
+  const condition = `信頼度${S_RANK_MIN_TRUST}以上・最終資金が初期資金比${Math.round(
+    S_RANK_MIN_FUNDS_RATIO * 100,
+  )}%以上・第1優先的中率${Math.round(S_RANK_MIN_PRIMARY_HIT * 100)}%以上`;
   if (grade === "S") {
-    return `S評価の条件（信頼度${S_RANK_MIN_TRUST}以上 かつ 最終資金が初期資金比${Math.round(
-      S_RANK_MIN_FUNDS_RATIO * 100,
-    )}%以上）をどちらも満たしました。`;
+    return `S評価の条件（${condition}）をすべて満たしました。`;
   }
 
   const gaps: string[] = [];
@@ -206,9 +248,14 @@ function sRankNote(grade: Grade, ratio: number, finalTrust: number): string {
       )}ポイント`,
     );
   }
-  return `なお、S評価には信頼度${S_RANK_MIN_TRUST}以上 かつ 最終資金が初期資金比${Math.round(
-    S_RANK_MIN_FUNDS_RATIO * 100,
-  )}%以上の両方が必要です（今回は${gaps.join("、")}不足）。`;
+  if (hitRate < S_RANK_MIN_PRIMARY_HIT) {
+    gaps.push(
+      `第1優先的中率があと${Math.ceil(
+        (S_RANK_MIN_PRIMARY_HIT - hitRate) * 100,
+      )}ポイント`,
+    );
+  }
+  return `なお、S評価には${condition}のすべてが必要です（今回は${gaps.join("、")}不足）。`;
 }
 
 const styleCopy: Record<
@@ -338,7 +385,13 @@ export function buildFinalReport(state: GameState): FinalReportData {
 
   const cfg = getModeConfig(state.mode);
   const fundsRatio = state.availableFunds / cfg.initialFunds;
-  const grade = gradeFor(fundsRatio, state.trustScore, state.bankrupt);
+  const hitRate = primaryHitRate(state);
+  const grade = gradeFor(
+    fundsRatio,
+    state.trustScore,
+    hitRate,
+    state.bankrupt,
+  );
   const style = buildStyle(channelBreakdown, state.trustScore);
 
   return {
@@ -350,7 +403,8 @@ export function buildFinalReport(state: GameState): FinalReportData {
     gradeTagline: gradeTagline(grade, state.turn),
     evaluationReason: state.bankrupt
       ? buildBankruptcyReason(state)
-      : buildEvaluationReason(grade, fundsRatio, state.trustScore),
+      : buildEvaluationReason(grade, fundsRatio, state.trustScore, hitRate),
+    primaryHitRate: hitRate,
     finalFunds: state.availableFunds,
     initialFunds: cfg.initialFunds,
     fundsDelta: state.availableFunds - cfg.initialFunds,

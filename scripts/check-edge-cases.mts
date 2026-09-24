@@ -14,7 +14,8 @@ import {
 } from "../lib/game";
 import { buildFinalReport } from "../lib/finalReport";
 import { emptyPlan } from "../lib/marketing";
-import { createInitialGameState, getModeConfig, getScenarioTurn } from "../lib/modes";
+import { createInitialGameState, getModeConfig, getScenarioTurn, synergyRuleFor } from "../lib/modes";
+import { evaluateSynergy, priorityRewardRate } from "../lib/synergy";
 import { researchReports } from "../lib/research";
 import type { GameState, MarketingPlan } from "../lib/types";
 
@@ -176,6 +177,64 @@ section("F/③: 途中終了・履歴なしでも最終レポートを生成で�
   report = buildFinalReport(s);
   check("3年設定のプレイ年数", report.yearsPlayed === 3, `${report.yearsPlayed}`);
   check("3年設定で5年前提の文言を含まない", !JSON.stringify(report).includes("5年間"));
+}
+
+// ---------------------------------------------------------------------------
+section("P: 配分比による受注判定（同額配分の不公平を解消）");
+{
+  const rule = synergyRuleFor("intro");
+  const tie = plan({ fieldSales: 100_000, seminar: 100_000 });
+  check("同額2チャネル：セミナー訴求も受注", evaluateSynergy("燃費性能", ["燃費性能"], tie, rule).won);
+  check("同額2チャネル：営業訴求も受注", evaluateSynergy("サポート体制", ["サポート体制"], tie, rule).won);
+  const even = plan({ expo: 50_000, fieldSales: 50_000, seminar: 50_000, tradePress: 50_000, digital: 50_000 });
+  const evenRes = evaluateSynergy("燃費性能", ["燃費性能"], even, rule);
+  check("均等配分（20%）は閾値未満で失注", !evenRes.won && evenRes.reason === "lowShare");
+  const exact = plan({ seminar: 50_000, expo: 150_000 });
+  check("ちょうど25%は受注", evaluateSynergy("燃費性能", ["燃費性能"], exact, rule).won);
+  const zero = evaluateSynergy("燃費性能", ["燃費性能"], emptyPlan(), rule);
+  check("配分なしは失注", !zero.won && zero.shortfall > 0);
+
+  // 不足額を足せば受注でき、1刻み少ないと受注できない（追加分は配分全体にも加わる）
+  const cases: [MarketingPlan, string, "intro" | "advanced"][] = [
+    [even, "燃費性能", "intro"],
+    [plan({ seminar: 40_000, expo: 300_000 }), "技術力", "advanced"],
+    [plan({ seminar: 120_000, expo: 400_000 }), "規制適合", "advanced"],
+    [emptyPlan(), "実績", "advanced"],
+  ];
+  for (const [p, prio, mode] of cases) {
+    const r = synergyRuleFor(mode);
+    const res = evaluateSynergy(prio, [prio], p, r);
+    const ch = res.requiredChannel;
+    const after = evaluateSynergy(prio, [prio], { ...p, [ch]: p[ch] + res.shortfall }, r);
+    const less = evaluateSynergy(prio, [prio], { ...p, [ch]: p[ch] + res.shortfall - 10_000 }, r);
+    check(`不足額 $${res.shortfall} を足すと受注（${mode}）`, after.won, after.reason);
+    check(`不足額は最小（1刻み少ないと失注）（${mode}）`, !less.won);
+  }
+
+  const adv = synergyRuleFor("advanced");
+  const small = evaluateSynergy("燃費性能", ["燃費性能"], plan({ seminar: 60_000 }), adv);
+  check("実践編：配分比は十分でも $100k 未満は投資不足", !small.won && small.reason === "underinvested");
+}
+
+section("重視順位による報酬差");
+{
+  const s0 = commit(
+    createInitialGameState("intro"),
+    plan({ seminar: 100_000, fieldSales: 100_000, digital: 100_000 }),
+  );
+  const req = getScenarioTurn(1, "intro").requests[0]; // 燃費性能, 納期, 保証条件
+  const cfg = getModeConfig("intro");
+  req.priorities.forEach((prio, rank) => {
+    const res = resolveProposal(s0, req.id, prio)!;
+    const rate = priorityRewardRate(rank);
+    check(`第${rank + 1}優先：受注`, res.outcome === "won");
+    check(`第${rank + 1}優先：受注額 ${rate * 100}%`, res.revenue === Math.round(req.budget * rate), `${res.revenue}`);
+    check(
+      `第${rank + 1}優先：信頼度 +${Math.round(cfg.winTrustDelta * rate)}`,
+      res.trustDelta === Math.round(cfg.winTrustDelta * rate),
+    );
+    check("提案ログに記録", res.state.proposalLog.at(-1)?.priorityRank === rank);
+  });
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

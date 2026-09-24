@@ -11,12 +11,18 @@ export function ChannelBudgetRow({
   channel,
   amount,
   effect,
+  share,
+  qualifies,
   disabled = false,
   onChange,
 }: {
   channel: MarketingChannel;
   amount: number;
   effect: ChannelEffect;
+  /** 配分全体に占める割合（0–1） */
+  share: number;
+  /** 提案の受注条件（配分比・最低投資額）を満たしているか */
+  qualifies: boolean;
   /** 提案済み・ゲーム終了後など、配分を変更できない状態 */
   disabled?: boolean;
   onChange: (amount: number) => void;
@@ -76,6 +82,11 @@ export function ChannelBudgetRow({
             ))}
             {amount > 0 ? (
               <>
+                <Badge tone={qualifies ? "positive" : "neutral"}>
+                  {qualifies ? <Icon name="check" className="h-3 w-3" /> : null}
+                  配分比 {Math.round(share * 100)}%
+                  {qualifies ? " · 訴求ライン到達" : ""}
+                </Badge>
                 <Badge tone="info">見込み引き合い {effect.leads}件</Badge>
                 <Badge tone="positive">信頼度 +{effect.trustDelta}</Badge>
               </>

@@ -1,5 +1,5 @@
 import { emptyPlan, planTotal, simulateMarketing } from "./marketing";
-import { getModeConfig, getScenarioTurn } from "./modes";
+import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
 import { researchSpendInTurn } from "./research";
 import { evaluateSynergy, type SynergyResult } from "./synergy";
 import type {
@@ -313,18 +313,43 @@ export function resolveProposal(
   const cfg = getModeConfig(state.mode);
   const synergy = evaluateSynergy(
     focusPriority,
+    request.priorities,
     state.marketingPlan,
-    cfg.minSynergySpend,
+    synergyRuleFor(state.mode),
   );
   const outcome: DealOutcome = synergy.won ? "won" : "lost";
-  const trustDelta = synergy.won ? cfg.winTrustDelta : cfg.loseTrustDelta;
-  const revenue = synergy.won ? request.budget : 0;
+  // 受注額と信頼度の上昇は、船主の重視順位に応じて目減りする
+  const trustDelta = synergy.won
+    ? Math.round(cfg.winTrustDelta * synergy.rewardRate)
+    : cfg.loseTrustDelta;
+  const revenue = synergy.won
+    ? Math.round(request.budget * synergy.rewardRate)
+    : 0;
 
   return {
     state: {
       ...state,
       proposalsCompleted: [...state.proposalsCompleted, requestId],
       dealOutcomes: { ...state.dealOutcomes, [requestId]: outcome },
+      proposalLog: [
+        ...state.proposalLog,
+        {
+          turn: state.turn,
+          requestId,
+          owner: request.owner,
+          requestBudget: request.budget,
+          focusPriority,
+          priorityRank: synergy.priorityRank,
+          requiredChannel: synergy.requiredChannel,
+          channelSpend: synergy.requiredChannelSpend,
+          channelShare: synergy.requiredChannelShare,
+          reason: synergy.reason,
+          won: synergy.won,
+          revenue,
+          trustDelta,
+          shortfall: synergy.shortfall,
+        },
+      ],
       availableFunds: state.availableFunds + revenue,
       trustScore: clampTrust(state.trustScore + trustDelta),
       relationshipDeltas: addRelationship(

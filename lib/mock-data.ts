@@ -29,6 +29,7 @@ export const initialGameState: GameState = {
   researchPurchases: [],
   proposalsCompleted: [],
   dealOutcomes: {},
+  proposalLog: [],
   gameCompleted: false,
   bankrupt: false,
   relationshipDeltas: {},

@@ -14,7 +14,11 @@ import {
   metricLessons,
   type B2bMetrics,
 } from "@/lib/b2bMetrics";
-import { buildFinalReport, type Grade } from "@/lib/finalReport";
+import {
+  S_RANK_MIN_PRIMARY_HIT,
+  buildFinalReport,
+  type Grade,
+} from "@/lib/finalReport";
 import { company } from "@/lib/mock-data";
 import { modeConfigs } from "@/lib/modes";
 import type { GameMode } from "@/lib/types";
@@ -92,7 +96,7 @@ export function FinalReport() {
           ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-navy-100 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px bg-navy-100 sm:grid-cols-5">
           <div className="bg-white px-5 py-4">
             <p className="text-[10px] font-semibold tracking-widest text-navy-400">
               最終資金
@@ -132,6 +136,18 @@ export function FinalReport() {
             <p className="tabular mt-1 text-lg font-bold text-navy-900">
               {report.totalLeads}
               <span className="text-xs font-medium text-navy-400">件</span>
+            </p>
+          </div>
+          <div className="col-span-2 bg-white px-5 py-4 sm:col-span-1">
+            <p className="text-[10px] font-semibold tracking-widest text-navy-400">
+              第1優先的中率
+            </p>
+            <p className="tabular mt-1 text-lg font-bold text-navy-900">
+              {Math.round(report.primaryHitRate * 100)}
+              <span className="text-xs font-medium text-navy-400">%</span>
+            </p>
+            <p className="mt-0.5 text-[11px] text-navy-400">
+              S評価には{Math.round(S_RANK_MIN_PRIMARY_HIT * 100)}%以上が必要
             </p>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { getTurnData, initialGameState, turns } from "./mock-data";
+import type { SynergyRule } from "./synergy";
 import type { GameMode, GameState, TurnData } from "./types";
 
 /**
@@ -35,8 +36,13 @@ export type ModeConfig = {
    */
   ignoreTrustDelta: number;
   /**
+   * 受注に必要な「訴求ポイントに対応するチャネル」の配分比（0–1）。
+   * 均等配分（5チャネル × 20%）では届かない水準にしている。
+   */
+  minSynergyShare: number;
+  /**
    * 受注に必要な「訴求ポイントに対応するチャネル」への最低投資額（USD）。
-   * 0 の場合は最大投資チャネルと一致するだけで受注できる。
+   * 0 の場合は配分比の条件のみ。
    */
   minSynergySpend: number;
   /** 最終レポートで B2B 指標（ROI・CPA など）を表示するか */
@@ -53,7 +59,8 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     highlights: [
       "初期資金 $500,000 / 信頼度 50",
       "船主の想定予算は標準水準",
-      "最大投資チャネルが訴求ポイントに合えば受注",
+      "訴求ポイントに対応するチャネルへ配分の25%以上を投じれば受注",
+      "第1優先に応えると満額、第2・第3優先は受注額80%・60%",
     ],
     initialFunds: initialGameState.availableFunds,
     initialTrust: initialGameState.trustScore,
@@ -63,6 +70,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     winTrustDelta: 8,
     loseTrustDelta: -8,
     ignoreTrustDelta: -10,
+    minSynergyShare: 0.25,
     minSynergySpend: 0,
     showAdvancedMetrics: false,
   },
@@ -75,9 +83,10 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     highlights: [
       "初期資金 $400,000 / 信頼度 40",
       "船主の想定予算 −30%、決算の売上 −30%・固定費 +20%",
-      "受注には対応チャネルへ $100,000 以上の投資が必要",
-      "失注時の信頼度ペナルティ −12",
-      "最終レポートで ROI・CPA などの B2B 指標を評価",
+      "受注には対応チャネルへ配分の25%以上かつ $100,000 以上の投資が必要",
+      "失注時の信頼度ペナルティ −12（未回答は −15）",
+      "決算後に資金がマイナスになると倒産",
+      "最終レポートで ROI・CPA などの B2B 指標と年次レビューを評価",
     ],
     initialFunds: 400_000,
     initialTrust: 40,
@@ -87,6 +96,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     winTrustDelta: 6,
     loseTrustDelta: -12,
     ignoreTrustDelta: -15,
+    minSynergyShare: 0.25,
     minSynergySpend: 100_000,
     showAdvancedMetrics: true,
   },
@@ -96,6 +106,12 @@ export const gameModes: GameMode[] = ["intro", "advanced"];
 
 export function getModeConfig(mode: GameMode): ModeConfig {
   return modeConfigs[mode];
+}
+
+/** 難易度ごとの受注条件（シナジー判定のルール） */
+export function synergyRuleFor(mode: GameMode): SynergyRule {
+  const cfg = getModeConfig(mode);
+  return { minShare: cfg.minSynergyShare, minSpend: cfg.minSynergySpend };
 }
 
 /** 金額に倍率をかけ、$10,000 単位に丸める（表示上きりの良い値にするため） */

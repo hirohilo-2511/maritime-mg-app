@@ -29,6 +29,8 @@ export type GameState = {
   proposalsCompleted: string[];
   /** 提案の結果（船主要求 ID → 受注 / 失注）。チャネルとの相性で決まる */
   dealOutcomes: Record<string, DealOutcome>;
+  /** 提案の詳細な記録（年次レビュー・評価に使う） */
+  proposalLog: ProposalRecord[];
   /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
   gameCompleted: boolean;
   /** 決算後に資金がマイナスになり、倒産でゲームが終了したか */
@@ -46,6 +48,32 @@ export type GameState = {
 
 /** 提案の結果。重視ポイントと投資チャネルの相性で決まる */
 export type DealOutcome = "won" | "lost";
+
+/** 提案 1 件の記録。判定に使った配分の状況も残し、振り返りで理由を説明できるようにする */
+export type ProposalRecord = {
+  turn: number;
+  requestId: string;
+  owner: string;
+  /** 船主の想定予算（難易度補正後） */
+  requestBudget: number;
+  /** 選んだ訴求ポイント */
+  focusPriority: string;
+  /** 訴求ポイントの重視順位（0 = 第1優先） */
+  priorityRank: number;
+  /** 訴求ポイントに対応するチャネル */
+  requiredChannel: MarketingChannelId;
+  /** そのチャネルへの投資額と配分比 */
+  channelSpend: number;
+  channelShare: number;
+  reason: "match" | "lowShare" | "underinvested";
+  won: boolean;
+  /** 受注額（失注時は 0） */
+  revenue: number;
+  /** 信頼度の変動 */
+  trustDelta: number;
+  /** 受注に追加で必要だった投資額（受注時は 0） */
+  shortfall: number;
+};
 
 /** 市場調査レポートの購入記録 */
 export type ResearchPurchase = {

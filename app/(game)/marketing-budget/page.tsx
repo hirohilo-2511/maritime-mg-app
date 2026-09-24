@@ -17,6 +17,7 @@ import {
   marketingChannels,
   simulateMarketing,
 } from "@/lib/marketing";
+import { channelShare, qualifyingChannels } from "@/lib/synergy";
 import type { MarketingChannelId } from "@/lib/types";
 
 /** 「均等配分」プリセットで使う、利用可能資金に対する比率 */
@@ -25,6 +26,7 @@ const PRESET_RATIO = 0.3;
 export default function MarketingBudgetPage() {
   const {
     state,
+    modeConfig,
     isFinalTurn,
     isPlanLocked,
     hasProposalThisTurn,
@@ -36,6 +38,14 @@ export default function MarketingBudgetPage() {
 
   const plan = state.marketingPlan;
   const outcome = useMemo(() => simulateMarketing(plan), [plan]);
+  const qualifying = useMemo(
+    () =>
+      qualifyingChannels(plan, {
+        minShare: modeConfig.minSynergyShare,
+        minSpend: modeConfig.minSynergySpend,
+      }),
+    [plan, modeConfig],
+  );
 
   const budget = Math.max(0, state.availableFunds);
   const remaining = state.availableFunds - outcome.spend;
@@ -163,7 +173,13 @@ export default function MarketingBudgetPage() {
           <Card>
             <CardHeader
               title="チャネル別の配分"
-              description={`投資額は ${money(BUDGET_STEP)} 刻み。効果は収穫逓減します`}
+              description={`投資額は ${money(BUDGET_STEP)} 刻み。配分の${Math.round(
+                modeConfig.minSynergyShare * 100,
+              )}%以上${
+                modeConfig.minSynergySpend > 0
+                  ? `かつ ${money(modeConfig.minSynergySpend)} 以上`
+                  : ""
+              }を投じたチャネルが、提案の裏付け（訴求ライン）になります`}
               icon={<Icon name="megaphone" className="h-5 w-5" />}
               action={
                 <div className="flex gap-2">
@@ -196,6 +212,8 @@ export default function MarketingBudgetPage() {
                   channel={channel}
                   amount={plan[channel.id]}
                   effect={outcome.byChannel[channel.id]}
+                  share={channelShare(plan, channel.id)}
+                  qualifies={qualifying.includes(channel.id)}
                   disabled={isPlanLocked}
                   onChange={(amount) => setAmount(channel.id, amount)}
                 />
