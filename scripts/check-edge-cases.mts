@@ -580,6 +580,7 @@ section("訴求ラインの表示（予算画面）");
   const adv = backingStatus(plan({ seminar: 80_000, expo: 80_000, digital: 80_000 }), "seminar", synergyRuleFor("advanced"));
   check("実践編：$100k 未満は理由を示す", !adv.qualifies && adv.reason === "underinvested" && adv.needed === 20_000, JSON.stringify(adv));
   check("未配分", backingStatus(emptyPlan(), "digital", intro).reason === "none");
+  check("意思決定者メモは導入編のみ", getModeConfig("intro").showDecisionMakerNote && !getModeConfig("advanced").showDecisionMakerNote);
   check("均等配分ボタンは導入編のみ", getModeConfig("intro").showEvenSplitPreset && !getModeConfig("advanced").showEvenSplitPreset);
   check("要求文に重視順を明かす言い回しがない", [1, 2, 3, 4, 5].every((t) => getScenarioTurn(t, "intro").requests.every((r) => !/最優先|重視|条件|評価/.test(r.requirement))));
   check("提案画面の裏付け表示は導入編のみ", getModeConfig("intro").showProposalBacking && !getModeConfig("advanced").showProposalBacking);

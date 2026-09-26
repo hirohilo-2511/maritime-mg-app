@@ -131,9 +131,15 @@ export function CustomerDetail({
                 {customer.decisionMaker.role}
               </span>
             </p>
-            <p className="mt-1 text-[13px] leading-relaxed text-navy-500">
-              {customer.decisionMaker.note}
-            </p>
+            {modeConfig.showDecisionMakerNote ? (
+              <p className="mt-1 text-[13px] leading-relaxed text-navy-500">
+                {customer.decisionMaker.note}
+              </p>
+            ) : (
+              <p className="mt-1 text-[12px] leading-relaxed text-navy-400">
+                何を重視する人物かは分かっていません。市場調査やニュースから読み解きましょう。
+              </p>
+            )}
           </div>
         </CardBody>
       </Card>
