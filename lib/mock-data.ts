@@ -97,7 +97,7 @@ export const turns: TurnData[] = [
         region: "シンガポール",
         vesselType: "ばら積み船 82,000 DWT × 3隻",
         requirement:
-          "新造船向けの主機補機パッケージ。竣工日程に間に合う納期を最優先に、CII 格付 B 以上を達成できる燃費性能の提案を希望。",
+          "新造船向けの主機補機パッケージ。CII 格付 B 以上の達成が前提の新造計画。",
         budget: 1_200_000,
         deadline: "1年目 Q2",
         status: "new",
@@ -109,7 +109,7 @@ export const turns: TurnData[] = [
         region: "ノルウェー",
         vesselType: "プロダクトタンカー 50,000 DWT × 2隻",
         requirement:
-          "既存船のスクラバー換装と、EU ETS 対応の排出量モニタリング機器の導入検討。補助金を活用して初期投資を抑えたい。",
+          "既存船のスクラバー換装と、EU ETS 対応の排出量モニタリング機器の導入検討。",
         budget: 780_000,
         deadline: "1年目 Q3",
         status: "in_review",
@@ -121,7 +121,7 @@ export const turns: TurnData[] = [
         region: "日本 / 今治",
         vesselType: "内航コンテナ船 749 GT × 4隻",
         requirement:
-          "省人化を目的とした機関室モニタリングシステム。国内サポート体制を重視。",
+          "省人化を目的とした機関室モニタリングシステムの導入検討。",
         budget: 320_000,
         deadline: "1年目 Q2",
         status: "negotiating",
@@ -191,7 +191,7 @@ export const turns: TurnData[] = [
         region: "シンガポール",
         vesselType: "ばら積み船 82,000 DWT × 3隻",
         requirement:
-          "継続案件。競合の値下げを受け、同等性能での価格見直しかライフサイクルコストの提示を要求。",
+          "継続案件。競合各社の動きを受け、提案内容の見直しを求められている。",
         budget: 1_050_000,
         deadline: "2年目 Q2",
         status: "negotiating",
@@ -203,7 +203,7 @@ export const turns: TurnData[] = [
         region: "ギリシャ / ピレウス",
         vesselType: "ハンディマックス 38,000 DWT × 6隻",
         requirement:
-          "CII 格付改善のためのレトロフィット一括案件。船隊全体での改善効果のシミュレーションを希望。",
+          "ばら積み船隊のレトロフィット案件。複数隻をまとめて検討している。",
         budget: 1_450_000,
         deadline: "2年目 Q3",
         status: "new",
@@ -215,7 +215,7 @@ export const turns: TurnData[] = [
         region: "日本 / 今治",
         vesselType: "内航コンテナ船 749 GT × 2隻（追加）",
         requirement:
-          "初年度納入分の評価が良好なため、姉妹船2隻への追加導入を検討。",
+          "初年度に納入した設備が好評のため、姉妹船2隻への追加導入を検討。",
         budget: 180_000,
         deadline: "2年目 Q2",
         status: "new",
@@ -276,7 +276,7 @@ export const turns: TurnData[] = [
         region: "ギリシャ / ピレウス",
         vesselType: "ハンディマックス 38,000 DWT × 4隻（第2期）",
         requirement:
-          "第1期の実績を踏まえた残り4隻分の発注。長期メンテナンス契約の同時締結を打診。",
+          "第1期に続く、残り4隻分の発注の検討。",
         budget: 960_000,
         deadline: "3年目 Q3",
         status: "negotiating",
@@ -338,7 +338,7 @@ export const turns: TurnData[] = [
         region: "UAE / ドバイ",
         vesselType: "VLCC 300,000 DWT × 2隻",
         requirement:
-          "最終選考。中東域での24時間サポート拠点の設置計画の提示が条件。",
+          "最終選考。中東域での長期運用を見据えた総合提案を求められている。",
         budget: 1_800_000,
         deadline: "4年目 Q2",
         status: "negotiating",
@@ -350,7 +350,7 @@ export const turns: TurnData[] = [
         region: "シンガポール",
         vesselType: "コンテナ船 8,000 TEU × 2隻",
         requirement:
-          "前回失注案件の再打診。競合の納期遅延を受け、実績と納期確実性を評価。",
+          "前回失注した案件の再打診。競合側の状況が変わり、選定をやり直している。",
         budget: 1_350_000,
         deadline: "4年目 Q3",
         status: "new",
@@ -401,7 +401,7 @@ export const turns: TurnData[] = [
         region: "UAE / ドバイ",
         vesselType: "VLCC 300,000 DWT × 4隻（追加）",
         requirement:
-          "初回納入の評価を踏まえた追加4隻分。グループ全体への標準採用も検討中。",
+          "追加4隻分の発注の検討。",
         budget: 3_400_000,
         deadline: "5年目 Q3",
         status: "negotiating",
@@ -413,7 +413,7 @@ export const turns: TurnData[] = [
         region: "ノルウェー",
         vesselType: "アンモニア燃料船 45,000 DWT × 3隻",
         requirement:
-          "次世代燃料対応の新造プロジェクト。共同開発パートナーとしての参画を打診。",
+          "次世代燃料対応の新造プロジェクト。",
         budget: 2_600_000,
         deadline: "5年目 Q4",
         status: "new",
@@ -441,7 +441,7 @@ export const extraRequests: Record<number, ShipownerRequest[]> = {
       owner: "Nordic Tanker AS",
       region: "ノルウェー",
       vesselType: "プロダクトタンカー × 2隻",
-      requirement: "既存タンカーへの燃料流量計の追加設置。次の入渠に間に合わせたい。",
+      requirement: "既存タンカーへの燃料流量計の追加設置。",
       budget: 300_000,
       deadline: "2年目 Q3",
       status: "new",
@@ -531,7 +531,7 @@ export const extraRequests: Record<number, ShipownerRequest[]> = {
       owner: "Pacific Ocean Lines",
       region: "シンガポール",
       vesselType: "新造コンテナ船 × 2隻",
-      requirement: "竣工の前倒しに伴う、納期短縮を条件とした追加発注。",
+      requirement: "新造コンテナ船への追加発注の検討。",
       budget: 600_000,
       deadline: "5年目 Q4",
       status: "new",

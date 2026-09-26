@@ -57,6 +57,8 @@ export type ModeConfig = {
    * 実践編では見せず、予算配分の段階で自分で見極めさせる。
    */
   showProposalBacking: boolean;
+  /** 予算画面に「均等配分」ボタン（全施策へ均等に配る見本）を出すか。実践編では自分で考えさせる */
+  showEvenSplitPreset: boolean;
   /** 市場調査の示唆を、関係する船主の顧客プロファイルに表示するか */
   researchInsightsInProfile: boolean;
   /**
@@ -147,6 +149,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     minSynergySpend: 0,
     showAdvancedMetrics: false,
     showProposalBacking: true,
+    showEvenSplitPreset: true,
     researchInsightsInProfile: true,
     hidePriorityOrderUntilResearched: false,
     researchWinTrustBonus: 0,
@@ -190,6 +193,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     minSynergySpend: 100_000,
     showAdvancedMetrics: true,
     showProposalBacking: false,
+    showEvenSplitPreset: false,
     researchInsightsInProfile: false,
     hidePriorityOrderUntilResearched: true,
     researchWinTrustBonus: 2,

@@ -204,17 +204,19 @@ export default function MarketingBudgetPage() {
               icon={<Icon name="megaphone" className="h-5 w-5" />}
               action={
                 <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={isPlanLocked}
-                    onClick={() =>
-                      updateMarketingPlan(evenSplit(budget * PRESET_RATIO))
-                    }
-                    title={`資金の${PRESET_RATIO * 100}%を全チャネルへ均等配分します`}
-                  >
-                    均等配分
-                  </Button>
+                  {modeConfig.showEvenSplitPreset ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={isPlanLocked}
+                      onClick={() =>
+                        updateMarketingPlan(evenSplit(budget * PRESET_RATIO))
+                      }
+                      title={`資金の${PRESET_RATIO * 100}%を全チャネルへ均等配分します`}
+                    >
+                      均等配分
+                    </Button>
+                  ) : null}
                   <Button
                     variant="ghost"
                     size="sm"

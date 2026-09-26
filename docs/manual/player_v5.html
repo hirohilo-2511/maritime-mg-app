@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Maritime MG プレイヤーガイド Ver.5</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --navy: #0b1f3a; --navy2: #14335e; --sea: #0ea5e9; --sea-l: #e0f4fd;
+    --sun: #fbbf24; --sun-l: #fff6d6; --coral: #f43f5e; --coral-l: #ffe4ea;
+    --mint: #10b981; --mint-l: #dcfce7; --grape: #8b5cf6; --grape-l: #ede9fe;
+    --ink: #1e293b; --mute: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; height: 297mm; padding: 14mm 14mm 12mm; position: relative; overflow: hidden; page-break-after: always; background: #fff; }
+  .page:last-child { page-break-after: auto; }
+  .foot { position: absolute; bottom: 7mm; left: 14mm; right: 14mm; display: flex; justify-content: space-between; font-size: 8.5pt; color: var(--mute); }
+  h2 { font-size: 20pt; margin: 0 0 4mm; letter-spacing: .02em; }
+  h2 .tag { display: inline-block; font-size: 10pt; background: var(--navy); color: #fff; border-radius: 99px; padding: 1mm 4mm; vertical-align: middle; margin-right: 3mm; }
+  p { margin: 0; line-height: 1.7; font-size: 10.5pt; }
+  .lead { font-size: 11pt; color: var(--mute); margin-bottom: 6mm; }
+  .card { border-radius: 5mm; padding: 5mm 6mm; }
+  .emoji { font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif; }
+
+  /* 表紙 */
+  .cover { background: linear-gradient(160deg, var(--navy) 0%, var(--navy2) 55%, #0b6aa8 100%); color: #fff; }
+  .cover .wave { position: absolute; left: -20mm; right: -20mm; bottom: -8mm; height: 95mm; background: radial-gradient(120% 90% at 50% 100%, #38bdf8 0%, #0ea5e9 45%, transparent 46%); opacity: .35; }
+  .cover .wave2 { position: absolute; left: -30mm; right: -10mm; bottom: -30mm; height: 90mm; background: radial-gradient(100% 90% at 40% 100%, #7dd3fc 0%, transparent 60%); opacity: .35; }
+  .badge-ver { display: inline-block; background: var(--sun); color: var(--navy); font-weight: 800; border-radius: 99px; padding: 1.2mm 5mm; font-size: 10pt; }
+  .cover h1 { font-size: 40pt; line-height: 1.15; margin: 8mm 0 3mm; letter-spacing: .01em; }
+  .cover h1 small { display: block; font-size: 14pt; font-weight: 600; opacity: .85; margin-bottom: 3mm; letter-spacing: .15em; }
+  .cover .catch { font-size: 16pt; font-weight: 700; color: var(--sun); margin-bottom: 6mm; }
+  .cover .intro { font-size: 11pt; line-height: 1.8; opacity: .95; max-width: 150mm; }
+  .start { margin-top: 10mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; position: relative; z-index: 1; }
+  .step { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5mm; padding: 5mm; }
+  .step .num { width: 11mm; height: 11mm; border-radius: 50%; background: var(--sun); color: var(--navy); font-weight: 900; font-size: 15pt; display: flex; align-items: center; justify-content: center; margin-bottom: 3mm; }
+  .step b { display: block; font-size: 12pt; margin-bottom: 1.5mm; }
+  .step p { font-size: 9.5pt; line-height: 1.6; opacity: .92; }
+  .url { position: relative; z-index: 1; margin-top: 8mm; background: #fff; color: var(--navy); border-radius: 5mm; padding: 4mm 6mm; display: flex; align-items: center; gap: 4mm; font-size: 11pt; }
+  .url b { font-size: 14pt; letter-spacing: .01em; }
+  .modes { position: relative; z-index: 1; margin-top: 7mm; display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .mode { border-radius: 5mm; padding: 5mm 6mm; color: var(--navy); }
+  .mode.intro { background: var(--mint-l); }
+  .mode.adv { background: var(--sun-l); }
+  .mode b { font-size: 13pt; display: block; margin-bottom: 1mm; }
+  .mode p { font-size: 9.5pt; line-height: 1.6; }
+
+  /* 1年のながれ */
+  .loop { display: grid; grid-template-columns: 1fr 8mm 1fr 8mm 1fr; align-items: stretch; margin-bottom: 7mm; }
+  .loop .arrow { display: flex; align-items: center; justify-content: center; font-size: 18pt; color: var(--sea); font-weight: 900; }
+  .loop .card { color: var(--navy); }
+  .loop .card .big { font-size: 26pt; line-height: 1; margin-bottom: 2mm; }
+  .loop .card b { display: block; font-size: 12.5pt; margin-bottom: 1.5mm; }
+  .loop .card p { font-size: 9.5pt; line-height: 1.6; }
+  .c1 { background: var(--sea-l); } .c2 { background: var(--grape-l); } .c3 { background: var(--coral-l); }
+  .tips { display: grid; grid-template-columns: 1fr; gap: 3.5mm; margin-bottom: 6mm; }
+  .tip { display: grid; grid-template-columns: 16mm 1fr; gap: 4mm; align-items: center; border: 2px solid #e2e8f0; border-radius: 5mm; padding: 3.5mm 5mm; }
+  .tip .ic { width: 16mm; height: 16mm; border-radius: 4mm; display: flex; align-items: center; justify-content: center; font-size: 20pt; }
+  .tip b { font-size: 12pt; display: block; margin-bottom: 1mm; }
+  .tip p { font-size: 9.8pt; line-height: 1.6; }
+  .cheat { background: var(--navy); color: #fff; border-radius: 5mm; padding: 5mm 6mm; }
+  .cheat h3 { margin: 0 0 3mm; font-size: 12.5pt; color: var(--sun); }
+  .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; }
+  .chip { background: rgba(255,255,255,.1); border-radius: 3.5mm; padding: 3mm; text-align: center; }
+  .chip .want { font-size: 10pt; font-weight: 800; color: #fff; }
+  .chip .down { font-size: 10pt; color: var(--sun); margin: .5mm 0; }
+  .chip .ch { font-size: 9pt; color: #bae6fd; }
+  .cheat .note { font-size: 8.8pt; opacity: .8; margin-top: 3mm; }
+
+  /* 実践編 */
+  .adv-hero { background: linear-gradient(120deg, #f59e0b, #f43f5e); color: #fff; border-radius: 6mm; padding: 6mm 7mm; margin-bottom: 6mm; }
+  .adv-hero h2 { color: #fff; }
+  .adv-hero p { font-size: 11pt; opacity: .95; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4.5mm; margin-bottom: 6mm; }
+  .feat { border-radius: 5mm; padding: 4.5mm 5mm; }
+  .feat .t { display: flex; align-items: center; gap: 2.5mm; font-weight: 800; font-size: 11.5pt; margin-bottom: 2mm; color: var(--navy); }
+  .feat .t .emoji { font-size: 16pt; }
+  .feat p { font-size: 9.4pt; line-height: 1.6; }
+  .rank { display: grid; grid-template-columns: 30mm 1fr; gap: 5mm; align-items: center; background: var(--navy); color: #fff; border-radius: 6mm; padding: 5mm 6mm; }
+  .rank .s { width: 30mm; height: 30mm; border-radius: 7mm; background: var(--sun); color: var(--navy); font-size: 40pt; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  .rank b { color: var(--sun); font-size: 13pt; display: block; margin-bottom: 2mm; }
+  .rank ul { margin: 0; padding-left: 5mm; font-size: 10pt; line-height: 1.8; }
+  .rank .sub { font-size: 9pt; opacity: .8; margin-top: 1.5mm; }
+
+  /* FAQ */
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 6mm; }
+  .q { border: 2px solid #e2e8f0; border-radius: 5mm; padding: 4mm 5mm; }
+  .q b { display: block; font-size: 10.8pt; color: var(--navy); margin-bottom: 1.5mm; }
+  .q b::before { content: "Q"; display: inline-block; background: var(--sea); color: #fff; border-radius: 2mm; font-size: 9pt; padding: .3mm 1.8mm; margin-right: 2mm; }
+  .q p { font-size: 9.3pt; line-height: 1.6; }
+  .report { background: var(--grape-l); border-radius: 6mm; padding: 5mm 6mm; margin-bottom: 6mm; }
+  .report h3 { margin: 0 0 2mm; font-size: 13pt; color: var(--grape); }
+  .report ul { margin: 0; padding-left: 5mm; font-size: 9.8pt; line-height: 1.8; }
+  .end { text-align: center; background: linear-gradient(120deg, var(--sea), var(--grape)); color: #fff; border-radius: 6mm; padding: 6mm; }
+  .end b { font-size: 16pt; display: block; margin-bottom: 1mm; }
+  .end p { font-size: 10pt; opacity: .95; }
+  .cmp { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 6mm; font-size: 9.6pt; border-radius: 5mm; overflow: hidden; border: 2px solid #e2e8f0; }
+  .cmp th, .cmp td { padding: 2.6mm 3.5mm; text-align: left; border-bottom: 1px solid #e2e8f0; line-height: 1.5; }
+  .cmp tr:last-child td { border-bottom: none; }
+  .cmp thead th { background: var(--navy); color: #fff; font-size: 10pt; white-space: nowrap; }
+  .cmp thead th.i { background: var(--mint); } .cmp thead th.a { background: #f59e0b; }
+  .cmp td:first-child { font-weight: 700; color: var(--navy); background: #f8fafc; width: 36mm; white-space: nowrap; }
+  .access { margin-top: 6mm; display: flex; align-items: center; gap: 5mm; background: var(--navy); color: #fff; border-radius: 6mm; padding: 5mm 7mm; }
+  .access small { display: block; font-size: 9.5pt; opacity: .8; margin-bottom: 1mm; }
+  .access b { font-size: 16pt; letter-spacing: .01em; color: var(--sun); }
+  .kbd { display: inline-block; background: #fff; color: var(--navy); border-radius: 2mm; padding: 0 2mm; font-weight: 700; font-size: 9pt; border: 1px solid #cbd5e1; }
+</style>
+</head>
+<body>
+
+<!-- 1. 表紙・始め方 -->
+<section class="page cover">
+  <div class="wave"></div><div class="wave2"></div>
+  <span class="badge-ver">プレイヤーガイド Ver.5</span>
+  <h1><small>MARITIME MG</small>5年で、<br>海の信頼を勝ち取れ！</h1>
+  <p class="catch"><span class="emoji">⚓</span> 船舶用機器メーカーの経営企画として、予算と提案で勝負！</p>
+  <p class="intro">
+    あなたは限られたマーケティング予算を、展示会・営業・セミナーなどに配分し、
+    世界の船主から届く要求に提案していきます。<br>
+    「船主が一番重視していること」を読み取り、その裏付けになる施策に力を入れられるか。
+    5年後、資金と信頼度で経営の腕が評価されます。
+  </p>
+
+  <div class="start">
+    <div class="step"><div class="num">1</div><b>名前を入れる</b><p>ログイン画面で「プレイヤー名」を入力。最終レポートにあなたの名前が載ります。</p></div>
+    <div class="step"><div class="num">2</div><b>モードを選ぶ</b><p>はじめての人は<b style="display:inline;color:var(--sun)">導入編</b>から。慣れたら実践編に挑戦！</p></div>
+    <div class="step"><div class="num">3</div><b>ログイン！</b><p>メールアドレスとパスワードは、どんな文字でも OK（練習用の画面です）。</p></div>
+  </div>
+
+  <div class="url"><span class="emoji" style="font-size:18pt">🔗</span><span>アクセスはこちら</span><b>https://maritime-mg-app.vercel.app/</b></div>
+
+  <div class="modes">
+    <div class="mode intro"><b><span class="emoji">🌱</span> 導入編</b><p>資金 $500,000・信頼度 50 からスタート。画面のヒントを見ながら、予算と提案の関係を体で覚えるモード。</p></div>
+    <div class="mode adv"><b><span class="emoji">🔥</span> 実践編</b><p>資金 $400,000・信頼度 40。市況は厳しく、顧客の本音は調べないと分からない。上級者向けの本番モード。</p></div>
+  </div>
+  <div class="foot" style="color:rgba(255,255,255,.7)"><span>Maritime MG プレイヤーガイド Ver.5</span><span>Confidential for Internal Training</span></div>
+</section>
+
+<!-- 2. 1年のながれ・勝つコツ -->
+<section class="page">
+  <h2><span class="tag">基本</span>1年はこの3ステップ</h2>
+  <p class="lead">左のサイドバーが「今やること」を案内してくれます。迷ったらサイドバーを見よう。</p>
+  <div class="loop">
+    <div class="card c1"><div class="big emoji">💰</div><b>① 予算を配る</b><p>5つの施策にスライダーで配分し「確定」。確定しないと提案できません。</p></div>
+    <div class="arrow">▶</div>
+    <div class="card c2"><div class="big emoji">🤝</div><b>② 船主に提案</b><p>船主が重視する要素から「訴求ポイント」を1つ選んで提案。その場で受注／失注が出ます。</p></div>
+    <div class="arrow">▶</div>
+    <div class="card c3"><div class="big emoji">📈</div><b>③ ターン終了</b><p>サイドバー左下のボタンで決算。資金と信頼度が変わり、次の年へ。</p></div>
+  </div>
+
+  <h2 style="font-size:16pt"><span class="emoji">🏆</span> 勝つためのコツ 3つ</h2>
+  <div class="tips">
+    <div class="tip"><div class="ic emoji" style="background:var(--sun-l)">🎯</div><div><b>船主の「①第1優先」に応える</b><p>重視項目は大事な順に並んでいます。第1優先で受注すると満額、2番目は80%、3番目は60%に目減り。</p></div></div>
+    <div class="tip"><div class="ic emoji" style="background:var(--sea-l)">🔦</div><div><b>力を入れる施策をしぼる</b><p>配分全体の<b style="display:inline">4分の1以上</b>を投じた施策だけが、提案の「裏付け」になります。5つに均等に配ると、どれも届きません。スライダーの緑の目印が合図です。</p></div></div>
+    <div class="tip"><div class="ic emoji" style="background:var(--coral-l)">🙇</div><div><b>勝ち目がなければ「辞退」も作戦</b><p>放置（未回答）がいちばん信用を落とします。裏付けがない案件は、提案画面の「今期は辞退する」で傷を浅く。</p></div></div>
+  </div>
+
+  <div class="cheat">
+    <h3><span class="emoji">🗺️</span> どの要求に、どの施策が効く？</h3>
+    <div class="chips">
+      <div class="chip"><div class="want">燃費・技術</div><div class="down">▼</div><div class="ch">技術セミナー</div></div>
+      <div class="chip"><div class="want">サポート</div><div class="down">▼</div><div class="ch">営業員の増員・訪問</div></div>
+      <div class="chip"><div class="want">価格</div><div class="down">▼</div><div class="ch">国際海事展示会</div></div>
+      <div class="chip"><div class="want">実績</div><div class="down">▼</div><div class="ch">業界誌広告</div></div>
+      <div class="chip"><div class="want">納期</div><div class="down">▼</div><div class="ch">デジタル</div></div>
+    </div>
+    <p class="note">予算画面の水色のタグにも「〇〇の裏付け」と書いてあります。規制適合・開発力は「燃費・技術」、保守契約・保証条件は「サポート」の仲間です。</p>
+  </div>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5</span><span>2</span></div>
+</section>
+
+<!-- 3. 実践編 -->
+<section class="page">
+  <div class="adv-hero">
+    <h2><span class="tag" style="background:#fff;color:#f43f5e">NEXT</span>実践編に挑戦しよう</h2>
+    <p>導入編で S が取れたら、次は本番。お金も情報も足りない中で、あなたの「選択と集中」が試されます。</p>
+  </div>
+  <div class="grid2">
+    <div class="feat" style="background:var(--sun-l)"><div class="t"><span class="emoji">💵</span>本気度は $100k から</div><p>裏付けにするには、4分の1以上に加えて<b>$100,000 以上</b>の投資が必要。少額をばらまくと、どの提案も通りません（確定前に警告が出ます）。</p></div>
+    <div class="feat" style="background:var(--grape-l)"><div class="t"><span class="emoji">🔍</span>顧客の本音は調べて分かる</div><p>船主の重視項目は「順不同」でしか見えません。関係する<b>市場調査</b>を買うと重視順が分かり、その船主から受注すると信頼度 +2。情報の有効期間は2年、古くなったら半額で更新できます。</p></div>
+    <div class="feat" style="background:var(--mint-l)"><div class="t"><span class="emoji">🌱</span>今年まいた種が、来年の商談に</div><p>予算画面の「見込み引き合い」が<b>20件・35件</b>に届くと、翌年に<b>追加案件</b>が届きます。回答しなくてもペナルティなし。件数を取るか、裏付けに集中するか。</p></div>
+    <div class="feat" style="background:var(--coral-l)"><div class="t"><span class="emoji">🆘</span>資金が尽きたら、決断のとき</div><p>決算で資金がマイナスになると「緊急経営判断」。<b>融資</b>（信頼度で金利が決まる・最大2回）で続けるか、<b>自主倒産</b>するか。借りたお金は最終年に返します。</p></div>
+  </div>
+
+  <div class="rank">
+    <div class="s">S</div>
+    <div>
+      <b>最高評価「S」の条件（3つとも達成）</b>
+      <ul>
+        <li>最終の信頼度が <b style="display:inline;color:#fff">95 以上</b></li>
+        <li>最終資金が初期資金の <b style="display:inline;color:#fff">130% 以上</b>（融資は返済後で判定）</li>
+        <li>船主の第1優先に応えて受注した割合が <b style="display:inline;color:#fff">80% 以上</b></li>
+      </ul>
+      <p class="sub">それ以外は資金と信頼度の合計で A〜C。倒産・最終年の債務超過は D です。</p>
+    </div>
+  </div>
+
+  <table class="cmp">
+    <thead><tr><th>ひと目でわかる違い</th><th class="i">🌱 導入編</th><th class="a">🔥 実践編</th></tr></thead>
+    <tbody>
+      <tr><td>スタート</td><td>資金 $500,000・信頼度 50</td><td>資金 $400,000・信頼度 40（市況も厳しめ）</td></tr>
+      <tr><td>裏付けの条件</td><td>配分全体の4分の1以上</td><td>4分の1以上 ＋ $100,000 以上</td></tr>
+      <tr><td>船主の重視順</td><td>最初から見える</td><td>市場調査で分かる（有効2年）</td></tr>
+      <tr><td>提案画面のヒント</td><td>裏付けの有無を表示</td><td>表示なし（自分で見極める）</td></tr>
+      <tr><td>追加案件</td><td>なし</td><td>見込み引き合い 20件・35件で翌年に届く</td></tr>
+      <tr><td>最終レポート</td><td>評価・スタイル分析・もしも</td><td>＋ ROI・CPA、年次レビュー</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5</span><span>3</span></div>
+</section>
+
+<!-- 4. こまったとき・最終レポート -->
+<section class="page">
+  <h2><span class="tag">FAQ</span>こまったときは</h2>
+  <div class="faq">
+    <div class="q"><b>「提案を作成」が押せない</b><p>先にマーケティング予算を「確定」してください。投資しない年は「投資を見送る（$0）」でも確定できます。</p></div>
+    <div class="q"><b>「ターンを終了する」が押せない</b><p>こちらも予算の確定が必要です。サイドバーのステップ表示で、次にやることを確認しましょう。</p></div>
+    <div class="q"><b>提案したあとに配分を変えたい</b><p>提案した年は配分を変えられません（提案の根拠が変わってしまうため）。提案の前によく考えて。</p></div>
+    <div class="q"><b>全部の施策に配ったのに勝てない</b><p>均等配分だと、どの施策も「全体の4分の1」に届きません。2〜3施策にしぼりましょう。</p></div>
+    <div class="q"><b>負けそうな案件はどうする？</b><p>放置すると信頼度が大きく下がります。「今期は辞退する」なら、失注や放置より傷は浅く済みます。</p></div>
+    <div class="q"><b>ページを再読み込みしたら最初に戻った</b><p>ゲームの記録はブラウザの中だけに保存されます。プレイ中は再読み込みやタブを閉じるのを避けてください。</p></div>
+  </div>
+
+  <div class="report">
+    <h3><span class="emoji">📊</span> 最終レポートの見どころ</h3>
+    <ul>
+      <li><b>総合評価と「なぜこの評価？」</b>… 資金・信頼度・第1優先の的中率から、評価の理由を解説</li>
+      <li><b>投資傾向の分析</b>… あなたの配分から見えるプレイスタイル（例：技術訴求型、既存顧客深耕型）</li>
+      <li><b>もしも、あの時こうしていたら</b>… いちばん大きな取りこぼしと、どうすれば満額だったか</li>
+      <li><b>実践編ではさらに</b>… ROI・CPA などの B2B 指標と、年ごとの良かった点・改善点（年次レビュー）</li>
+    </ul>
+  </div>
+
+  <div class="end">
+    <b><span class="emoji">🚢</span> さあ、出航しよう！</b>
+    <p>読むのはここまで。あとは画面のヒントを頼りに、まずは導入編で5年間を走り切ってみてください。<br>最終レポートの「実業務へのヒント」を、明日の仕事につなげましょう。</p>
+  </div>
+
+  <div class="access">
+    <span class="emoji" style="font-size:20pt">🔗</span>
+    <div><small>アクセスはこちら（ブラウザで開くだけ・インストール不要）</small><b>https://maritime-mg-app.vercel.app/</b></div>
+  </div>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5</span><span>4</span></div>
+</section>
+</body>
+</html>

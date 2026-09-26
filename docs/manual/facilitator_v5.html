@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Maritime MG ファシリテーターガイド Ver.5</title>
+<style>
+  @page { size: A4; margin: 14mm 15mm 14mm; }
+  :root { --navy: #0b1f3a; --sea: #0284c7; --line: #d8dee8; --soft: #f4f7fb; --ink: #1e293b; --mute: #5b6b82; --amber: #b45309; --rose: #be123c; --green: #047857; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; color: var(--ink); font-size: 9.6pt; line-height: 1.65; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cover { height: 267mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .cover .band { background: var(--navy); color: #fff; border-radius: 4mm; padding: 14mm 12mm; }
+  .cover .band small { letter-spacing: .2em; opacity: .75; font-size: 9pt; }
+  .cover h1 { font-size: 24pt; margin: 3mm 0 2mm; line-height: 1.3; }
+  .cover .band p { opacity: .85; font-size: 10.5pt; }
+  .meta { width: 100%; border-collapse: collapse; margin-top: 8mm; }
+  .meta td { border-bottom: 1px solid var(--line); padding: 2.5mm 2mm; vertical-align: top; }
+  .meta td:first-child { width: 38mm; color: var(--mute); font-weight: 700; }
+  section { page-break-before: auto; }
+  section.newpage { page-break-before: always; }
+  h2, h3 { break-after: avoid; page-break-after: avoid; }
+  ul, ol, .box { break-inside: avoid; }
+  h2 { font-size: 15pt; color: var(--navy); border-left: 2mm solid var(--sea); padding-left: 3mm; margin: 0 0 4mm; }
+  h3 { font-size: 11pt; color: var(--navy); margin: 5mm 0 2mm; }
+  p { margin: 0 0 2mm; }
+  ul, ol { margin: 0 0 2mm; padding-left: 5mm; }
+  li { margin-bottom: .8mm; }
+  table { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; font-size: 9pt; page-break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 1.6mm 2.2mm; text-align: left; vertical-align: top; line-height: 1.5; }
+  th { background: var(--soft); color: var(--navy); font-weight: 700; }
+  .num { text-align: right; white-space: nowrap; }
+  .box { border: 1px solid var(--line); background: var(--soft); border-radius: 2.5mm; padding: 3mm 4mm; margin: 2mm 0 3mm; page-break-inside: avoid; }
+  .warn { border-color: #f5c77e; background: #fff8eb; }
+  .spoiler { border-color: #f3a6b5; background: #fff1f4; }
+  .tag { display: inline-block; font-size: 8pt; font-weight: 700; border-radius: 99px; padding: .2mm 2.2mm; margin-right: 1mm; vertical-align: 1px; }
+  .t-i { background: #d1fae5; color: var(--green); } .t-a { background: #fde68a; color: var(--amber); } .t-new { background: #e0f2fe; color: var(--sea); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  code { font-family: "Consolas", monospace; background: var(--soft); padding: 0 1mm; border-radius: 1mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div>
+    <div class="band">
+      <small>MARITIME MG — FACILITATOR GUIDE</small>
+      <h1>海事B2B経営シミュレーション<br>ファシリテーターガイド（Ver.5）</h1>
+      <p>研修を設計・進行する方（講師・事務局）向けの詳細資料です。プレイヤーには別冊「プレイヤーガイド Ver.5」を配布してください。</p>
+    </div>
+    <table class="meta">
+      <tr><td>アクセス URL</td><td>https://maritime-mg-app.vercel.app/</td></tr>
+      <tr><td>対象</td><td>海事機器メーカーのマーケティング・営業担当者（1人1台の PC でプレイ）</td></tr>
+      <tr><td>所要時間の目安</td><td>90〜120分（導入編・実践編・振り返り）</td></tr>
+      <tr><td>この資料の内容</td><td>1. 研修のねらい ／ 2. 進行のしかたと準備 ／ 3. ルール詳細 ／ 4. 導入編と実践編 ／ 5. 市場調査・追加案件・緊急融資 ／ 6. 評価と最終レポート ／ 7. 解答の手引き（ネタバレ） ／ 8. よくある質問と既知の制約 ／ 9. 振り返りの問い</td></tr>
+      <tr><td>Ver.4 からの主な変更</td><td>
+        <span class="tag t-new">NEW</span>受注条件「配分全体の4分の1」と予算画面のヒント表示 ／
+        <span class="tag t-new">NEW</span>提案の辞退 ／
+        <span class="tag t-new">NEW</span>緊急融資と自主倒産（D 評価の見直し）／
+        <span class="tag t-new">NEW</span>市場調査の効果（導入編：顧客プロファイル、実践編：重視順・有効期限・更新版）／
+        <span class="tag t-new">NEW</span>追加案件（実践編）／
+        S 評価の条件に「第1優先的中率 80%以上」を追加（Ver.4 の記載を訂正）／評価は S〜D の5段階
+      </td></tr>
+    </table>
+  </div>
+  <p style="color:var(--mute);font-size:8.5pt">Confidential for Internal Training ／ 本資料の数値はアプリの設定値に基づきます（2026年9月時点）。</p>
+</div>
+
+<section class="newpage">
+  <h2>1. 研修のねらい</h2>
+  <p>船主（顧客）と直接話す機会が限られる中で、顧客の購買基準・B2B の商習慣・投資対効果の感覚を、5年間の経営ゲームで疑似体験します。プレイヤーは船舶用機器メーカーの経営企画として、マーケティング予算の配分と船主への提案を繰り返し、資金と信頼度を伸ばします。</p>
+  <h3>ゲームを通じて体験できる学び</h3>
+  <table>
+    <tr><th style="width:36mm">テーマ</th><th>ゲーム内で起きること</th></tr>
+    <tr><td>顧客ニーズを読む</td><td>船主の重視項目には順番があり、第1優先に応えると満額、第2・第3優先は受注額が 80%・60% に目減りする。</td></tr>
+    <tr><td>選択と集中</td><td>施策に配分全体の4分の1以上を投じないと提案の裏付けにならない。均等に配ると、大きな額でもどの提案も通らない。</td></tr>
+    <tr><td>誠実な顧客対応</td><td>回答しない（放置）がいちばん信頼を落とす。裏付けのない提案（失注）より、正直な辞退のほうが傷が浅い。</td></tr>
+    <tr><td>情報の価値 <span class="tag t-a">実践編</span></td><td>顧客の本音（重視順）は市場調査を買わないと分からない。情報は2年で古くなり、更新が必要。</td></tr>
+    <tr><td>パイプライン <span class="tag t-a">実践編</span></td><td>今年の見込み引き合いが翌年の追加案件になる。件数を取るか、裏付けに集中するかのトレードオフ。</td></tr>
+    <tr><td>資金繰り <span class="tag t-a">実践編</span></td><td>固定費が売上を上回る年があり、受注できないと資金が尽きる。緊急融資の金利は信頼度で決まる。</td></tr>
+    <tr><td>投資対効果 <span class="tag t-a">実践編</span></td><td>最終レポートで ROI・CPA・受注率などの B2B 指標と、年ごとの良かった点・機会損失を振り返る。</td></tr>
+  </table>
+
+  <h2 style="margin-top:6mm; page-break-before: always;">2. 進行のしかたと準備</h2>
+  <h3>推奨の進行（約100分）</h3>
+  <table>
+    <tr><th style="width:24mm">時間</th><th style="width:40mm">内容</th><th>ファシリテーターの動き</th></tr>
+    <tr><td>10分</td><td>導入・ルール説明</td><td>プレイヤーガイド p.1〜2 を使い、「1年＝予算→提案→ターン終了」と「勝つコツ3つ」だけ伝える。細かいルールは画面のヒントに任せる。</td></tr>
+    <tr><td>25分</td><td>導入編（5年）</td><td>自由にプレイ。つまずいている人には「サイドバーのステップ」「予算画面の水色のタグ」を見るよう促す。</td></tr>
+    <tr><td>10分</td><td>中間の振り返り</td><td>評価と「もしも、あの時こうしていたら」を共有。S が取れた人の配分の考え方を聞く。</td></tr>
+    <tr><td>40分</td><td>実践編（5年）</td><td>プレイヤーガイド p.3 で違いを説明してから開始。市場調査にいくら使うか、$100k の条件をどう満たすかを考えさせる。</td></tr>
+    <tr><td>15分</td><td>全体の振り返り</td><td>年次レビュー・B2B 指標を見ながら、9章の問いでディスカッション。</td></tr>
+  </table>
+  <h3>事前準備</h3>
+  <ul>
+    <li>プレイヤー1人につき PC 1台とブラウザ（Chrome / Edge 推奨）。インストールは不要です。</li>
+    <li>ログイン画面は練習用です。メールアドレス・パスワードは任意の文字で進めます（実在のパスワードは入力しないよう案内してください）。</li>
+    <li><b>ゲームの記録はブラウザの中だけに保存されます。</b> 再読み込み・タブを閉じる・別の PC に移ると最初からになります。休憩中もタブを開いたままにしてもらってください。</li>
+  </ul>
+  <h3>設定画面でできること</h3>
+  <table>
+    <tr><th style="width:40mm">項目</th><th>内容</th></tr>
+    <tr><td>総ターン数</td><td>3年・4年・5年から選べます（進行済みのターンより短くはできません）。時間が足りない場合は3年に。</td></tr>
+    <tr><td>参加チーム</td><td>チーム名を最大8つまで登録（表示用）。</td></tr>
+    <tr><td>表示通貨</td><td>USD / JPY（1 USD = 150 円）の切り替え。ゲームの結果には影響しません。</td></tr>
+    <tr><td>進行コントロール（デモ用）</td><td>決算をせずにターンだけ移動できます。資金と信頼度は変わらず、最終レポートに「デモ操作あり」と注記されます。説明用のデモ以外では使わないでください。</td></tr>
+    <tr><td>リセット</td><td>同じ難易度で1年目からやり直します。</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2 style="margin-top:6mm">3. ルール詳細</h2>
+  <h3>1年の流れ</h3>
+  <ol>
+    <li><b>予算を確定する</b>（必須）：5つの施策に $10,000 刻みで配分して「確定」。$0 で「投資を見送る」も可。確定しないと提案もターン終了もできません。</li>
+    <li><b>提案する／辞退する</b>（任意）：船主の重視項目から訴求ポイントを1つ選んで提案。提案した年は配分を変更できません。辞退しても配分は変更できます。</li>
+    <li><b>ターンを終了する</b>：サイドバー左下のボタン。未回答の本案件があると確認が出ます。</li>
+    <li><b>決算</b>：売上・固定費・マーケティング費（実践編で融資があれば利息）を反映し、次の年へ。</li>
+  </ol>
+  <h3>受注の判定（シナジー）</h3>
+  <p>選んだ訴求ポイントに対応する施策（下表）へ、その年の<b>配分全体の4分の1（25%）以上</b>を投じていれば受注します。<span class="tag t-a">実践編</span>はさらに、その施策へ <b>$100,000 以上</b>の投資が必要です。</p>
+  <table>
+    <tr><th>評価軸</th><th>船主要求での言葉（例）</th><th>裏付けになる施策</th><th class="num">上限</th><th class="num">$100k あたりの見込み引き合い</th></tr>
+    <tr><td>燃費・技術</td><td>燃費性能・規制適合・技術力・開発力・共同開発体制</td><td>技術セミナー</td><td class="num">$250k</td><td class="num">約4件</td></tr>
+    <tr><td>サポート体制</td><td>サポート体制・保証条件・保守契約・24時間サポート・サポート拠点</td><td>営業員の増員・訪問</td><td class="num">$300k</td><td class="num">約7件</td></tr>
+    <tr><td>価格競争力</td><td>価格・初期投資額・ライフサイクルコスト</td><td>国際海事展示会</td><td class="num">$400k</td><td class="num">約8件</td></tr>
+    <tr><td>実績評価</td><td>実績・船隊一括対応・標準化対応</td><td>業界誌広告</td><td class="num">$200k</td><td class="num">約6件</td></tr>
+    <tr><td>納期</td><td>納期</td><td>デジタル / オンライン</td><td class="num">$150k</td><td class="num">約10件</td></tr>
+  </table>
+  <ul>
+    <li><b>受注額</b>：第1優先で訴求すると想定予算の 100%、第2優先 80%、第3優先 60%。受注額はその場で資金に入ります。</li>
+    <li><b>予算画面のヒント</b>：各施策に「〇〇の裏付け」タグ、訴求ラインの目印（緑の線）と「あと $X」、訴求できる施策がゼロのときは確定前の警告が出ます。</li>
+    <li><b>信頼度</b>：マーケティングによる上昇は1年あたり +6 が上限。0〜100 の範囲。</li>
+    <li><b>見込み引き合い</b>：投資額の平方根に比例（収穫逓減）。導入編では指標表示のみ、実践編では翌年の追加案件の数を決めます。</li>
+  </ul>
+  <h3>要求への対応と信頼度・関係性</h3>
+  <table>
+    <tr><th>対応</th><th class="num">信頼度（導入編）</th><th class="num">信頼度（実践編）</th><th class="num">関係性</th><th>意味</th></tr>
+    <tr><td>受注</td><td class="num">+8</td><td class="num">+6（調査済みの船主は +8）</td><td class="num">+8</td><td>第2・第3優先は 80%・60% に目減り</td></tr>
+    <tr><td>辞退</td><td class="num">−4</td><td class="num">−6</td><td class="num">−4</td><td>身の丈に合わないと正直に伝える</td></tr>
+    <tr><td>失注</td><td class="num">−8</td><td class="num">−12</td><td class="num">−4</td><td>裏付けのない提案で信用を落とす</td></tr>
+    <tr><td>未回答</td><td class="num">−10</td><td class="num">−15</td><td class="num">−12</td><td>顧客を無視した（追加案件は対象外）</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2 style="margin-top:6mm">4. 導入編と実践編</h2>
+  <table>
+    <tr><th style="width:42mm">項目</th><th><span class="tag t-i">導入編</span></th><th><span class="tag t-a">実践編</span></th></tr>
+    <tr><td>初期資金・信頼度</td><td>$500,000・50</td><td>$400,000・40</td></tr>
+    <tr><td>船主の想定予算</td><td>標準</td><td>−30%</td></tr>
+    <tr><td>決算（既存事業）</td><td>毎年黒字（+$160k〜+$730k）</td><td>売上 −30%・固定費 +20%。受注なしでは毎年赤字（−$20k〜−$190k）</td></tr>
+    <tr><td>受注の条件</td><td>配分全体の4分の1以上</td><td>4分の1以上 ＋ $100,000 以上</td></tr>
+    <tr><td>船主の重視順</td><td>最初から表示（第1優先に①）</td><td>関係する市場調査を買うまで「順不同」</td></tr>
+    <tr><td>提案画面の裏付け表示</td><td>各訴求ポイントの施策と「到達／不足」を表示</td><td>表示しない</td></tr>
+    <tr><td>予算画面の「均等配分」ボタン</td><td>あり（押すと訴求ラインに届かない見本になる）</td><td>なし（自分で配分を考える）</td></tr>
+    <tr><td>市場調査の効果</td><td>顧客プロファイルに「市場調査からの示唆」を追加</td><td>重視順が分かる（有効2年・更新版は半額）、受注時に信頼度 +2</td></tr>
+    <tr><td>追加案件</td><td>なし</td><td>前年の見込み引き合い 20件・35件で翌年に +1・+2件</td></tr>
+    <tr><td>緊急融資</td><td>仕組みはあるが、通常のプレイでは資金不足にならない</td><td>資金不足で発生しうる（5章）</td></tr>
+    <tr><td>最終レポート</td><td>評価・投資傾向・もしも・実業務へのヒント</td><td>＋ B2B 指標（ROI・CPA 等）・年次レビュー</td></tr>
+  </table>
+  <div class="box warn"><b>実践編1年目のつまずき：</b>初期資金 $400k を5施策に $80k ずつ配ると、どの施策も $100k に届かず、その年の提案はすべて失注になります。予算画面の警告（「この配分では、どの提案も受注条件を満たせません」）に注目するよう、開始前に一言添えてください。勝ち目がない案件は「辞退」で傷を浅くできます。</div>
+
+  <h2 style="margin-top:6mm">5. 市場調査・追加案件・緊急融資</h2>
+  <h3>市場調査レポート</h3>
+  <table>
+    <tr><th>レポート</th><th class="num">価格</th><th class="num">購入可能</th><th>関係する船主（重視順が分かる／示唆が届く）</th></tr>
+    <tr><td>船種別需要見通し（3年）</td><td class="num">$60,000</td><td class="num">1年目〜</td><td>Setouchi・Aegean・Pacific</td></tr>
+    <tr><td>競合の価格帯推定</td><td class="num">$80,000</td><td class="num">1年目〜</td><td>Pacific</td></tr>
+    <tr><td>IMO 規制スケジュールの先読み</td><td class="num">$70,000</td><td class="num">1年目〜</td><td>Aegean・Pacific・Nordic</td></tr>
+    <tr><td>各国の補助金・優遇制度一覧</td><td class="num">$40,000</td><td class="num">1年目〜</td><td>Setouchi・Nordic</td></tr>
+    <tr><td>主要航路別の設備投資動向</td><td class="num">$45,000</td><td class="num">2年目〜</td><td>Nordic・Aegean・Gulf・Setouchi</td></tr>
+    <tr><td>セグメント別受注シェア推定</td><td class="num">$65,000</td><td class="num">2年目〜</td><td>Setouchi・Nordic・Gulf</td></tr>
+    <tr><td>次期中期規制の動向スカウティング</td><td class="num">$95,000</td><td class="num">3年目〜</td><td>Nordic・Gulf</td></tr>
+  </table>
+  <ul>
+    <li>購入費は即時に資金から引かれます。予算を確定済みの場合は、確定額を差し引いた残りで購入できます。</li>
+    <li><span class="tag t-a">実践編</span> 有効期間は購入年を含め2年（例：1年目購入 → 2年目まで）。期限切れのレポートは半額の更新版を買えます。</li>
+    <li>実践編1年目の例：3施策に $100k ずつ（$300k）＋「船種別需要見通し」＋「補助金」（計 $100k）で、1年目の3船主すべての重視順が分かります。</li>
+  </ul>
+</section>
+
+<section>
+  <h3 style="margin-top:0">追加案件 <span class="tag t-a">実践編</span></h3>
+  <p>前年の見込み引き合いが <b>20件</b>に届くと下表の上の1件、<b>35件</b>にも届くと2件とも届きます（1年の提案は最大5件）。回答しなくてもペナルティはなく「期限切れ」になります。第1優先的中率（S 評価の条件）は本案件だけで計算します。</p>
+  <table>
+    <tr><th class="num">年</th><th>船主</th><th>内容</th><th class="num">想定予算</th><th>重視項目（順）</th></tr>
+    <tr><td class="num">2</td><td>Nordic Tanker</td><td>燃料流量計の追加設置</td><td class="num">$210k</td><td>納期 &gt; 価格</td></tr>
+    <tr><td class="num">2</td><td>Gulf Energy</td><td>予備品パッケージの試験導入</td><td class="num">$180k</td><td>サポート体制 &gt; 実績</td></tr>
+    <tr><td class="num">3</td><td>Setouchi Kisen</td><td>機関室モニタリングの追加</td><td class="num">$140k</td><td>サポート体制 &gt; 価格</td></tr>
+    <tr><td class="num">3</td><td>Pacific Ocean</td><td>排出量レポート機能の追加</td><td class="num">$250k</td><td>燃費性能 &gt; 納期</td></tr>
+    <tr><td class="num">4</td><td>Nordic Tanker</td><td>EU ETS 報告の支援サービス</td><td class="num">$280k</td><td>規制適合 &gt; 保守契約</td></tr>
+    <tr><td class="num">4</td><td>Aegean Bulk</td><td>燃費改善キットの追加</td><td class="num">$320k</td><td>価格 &gt; 燃費性能</td></tr>
+    <tr><td class="num">5</td><td>Setouchi Kisen</td><td>グループ会社への標準採用</td><td class="num">$250k</td><td>実績 &gt; サポート体制</td></tr>
+    <tr><td class="num">5</td><td>Pacific Ocean</td><td>納期短縮を条件とした追加発注</td><td class="num">$420k</td><td>納期 &gt; 実績</td></tr>
+  </table>
+  <p>引き合いの目安：$100k ずつ3施策で約17〜25件、$150k ずつで約21〜31件、全施策を上限まで（$1.3M）で約56件。</p>
+
+  <h3>緊急融資と倒産</h3>
+  <p>決算後に資金がマイナスになると「緊急経営判断」が表示され、融資を受けて続けるか、自主倒産するかを選びます（閉じることはできません）。</p>
+  <table>
+    <tr><th style="width:42mm">項目</th><th>内容</th></tr>
+    <tr><td>融資額</td><td>不足額 ＋ 運転資金（導入編 $100k ／ 実践編 $200k）。借入枠が足りない場合は運転資金を減額</td></tr>
+    <tr><td>金利（固定）</td><td>決算後の信頼度で決定：80以上 5% ／ 60〜79 8% ／ 40〜59 11% ／ 30〜39 15% ／ 30未満 18%。2回目は +5ポイント（最大 23%）</td></tr>
+    <tr><td>その他の条件</td><td>最大2回、累計の借入は初期資金まで。融資を受けると信頼度 −5</td></tr>
+    <tr><td>返済</td><td>翌年から毎年の決算で利息を払い、最終年に元本を一括返済。返済後にマイナスなら「債務超過」で D</td></tr>
+    <tr><td>倒産（D）</td><td>自主倒産、3回目の資金不足、または不足額が残りの枠を超えた場合。受注できないまま赤字が続くと遅くとも3年目の決算で終了</td></tr>
+  </table>
+  <div class="box">年次レビューでは、年利 18% 以上での借入に「実質的に破綻状態での延命措置」という注記が付きます。資金繰りと信用力の関係を議論する材料になります。</div>
+
+  <h2 style="margin-top:6mm">6. 評価と最終レポート</h2>
+  <table>
+    <tr><th style="width:18mm">評価</th><th>条件</th></tr>
+    <tr><td><b>S</b></td><td>次の3つをすべて満たす：最終信頼度 95以上 ／ 最終資金が初期資金の 130%以上 ／ 第1優先的中率 80%以上（本案件のうち、第1優先で受注できた割合。未回答・失注・辞退は外れ）</td></tr>
+    <tr><td><b>A〜C</b></td><td>合成指標 ＝ 資金比（最終資金 ÷ 初期資金、3倍で頭打ち）× 20 ＋ 最終信頼度。140以上で A、100以上で B、それ未満は C</td></tr>
+    <tr><td><b>D</b></td><td>自主倒産／融資を受けられず倒産／最終年の返済後に債務超過</td></tr>
+  </table>
+  <p>最終資金は、融資の元本と利息を支払った後の額で評価します。融資を受けていても S 評価の対象です。</p>
+  <h3>最終レポートの構成</h3>
+  <ul>
+    <li><b>総合評価と「なぜこの評価に？」</b>：資金・信頼度・的中率の内訳と、S まで何が足りなかったか</li>
+    <li><b>投資傾向の分析</b>：配分から見えるプレイスタイル（大手船主開拓型・既存顧客深耕型・技術訴求型など）</li>
+    <li><b>借入と利息</b>（融資を受けた場合）／<b>もしも、あの時こうしていたら</b>／<b>実業務へのヒント</b></li>
+    <li><span class="tag t-a">実践編</span> <b>B2B マーケティング指標</b>（ROI・ROAS・CPA・CPL・受注率など。粗利率 30% を仮定）と<b>年次レビュー</b></li>
+  </ul>
+</section>
+
+<section class="newpage">
+  <h2>7. 解答の手引き（ネタバレ注意・プレイヤーには配布しないでください）</h2>
+  <div class="box spoiler">各年の本案件と、第1優先に応える施策です。想定予算は導入編の値で、実践編は 30% 減です。要求文には評価基準を書いていないため、実践編では市場調査・顧客プロファイル・ニュースから推理する必要があります。</div>
+  <table>
+    <tr><th class="num">年</th><th>船主</th><th class="num">想定予算</th><th>重視項目（重要な順）</th><th>第1優先に効く施策</th></tr>
+    <tr><td class="num">1</td><td>Pacific Ocean Lines</td><td class="num">$1,200k</td><td>納期 &gt; 燃費性能 &gt; 保証条件</td><td>デジタル</td></tr>
+    <tr><td class="num">1</td><td>Nordic Tanker AS</td><td class="num">$780k</td><td>初期投資額 &gt; 規制適合</td><td>展示会</td></tr>
+    <tr><td class="num">1</td><td>Setouchi Kisen</td><td class="num">$320k</td><td>サポート体制 &gt; 価格 &gt; 実績</td><td>営業訪問</td></tr>
+    <tr><td class="num">2</td><td>Pacific Ocean Lines</td><td class="num">$1,050k</td><td>価格 &gt; 燃費性能 &gt; ライフサイクルコスト</td><td>展示会</td></tr>
+    <tr><td class="num">2</td><td>Aegean Bulk Carriers</td><td class="num">$1,450k</td><td>規制適合 &gt; 船隊一括対応 &gt; 実績</td><td>技術セミナー</td></tr>
+    <tr><td class="num">2</td><td>Setouchi Kisen</td><td class="num">$180k</td><td>サポート体制 &gt; 納期</td><td>営業訪問</td></tr>
+    <tr><td class="num">3</td><td>Aegean Bulk Carriers</td><td class="num">$960k</td><td>実績 &gt; 保守契約 &gt; 価格</td><td>業界誌</td></tr>
+    <tr><td class="num">3</td><td>Gulf Energy Shipping</td><td class="num">$1,800k</td><td>技術力 &gt; 規制適合 &gt; 24時間サポート</td><td>技術セミナー</td></tr>
+    <tr><td class="num">4</td><td>Gulf Energy Shipping</td><td class="num">$1,800k</td><td>サポート拠点 &gt; 技術力 &gt; 価格</td><td>営業訪問</td></tr>
+    <tr><td class="num">4</td><td>Pacific Ocean Lines</td><td class="num">$1,350k</td><td>納期 &gt; 実績 &gt; 燃費性能</td><td>デジタル</td></tr>
+    <tr><td class="num">5</td><td>Gulf Energy Shipping</td><td class="num">$3,400k</td><td>実績 &gt; 標準化対応 &gt; サポート体制</td><td>業界誌</td></tr>
+    <tr><td class="num">5</td><td>Nordic Tanker AS</td><td class="num">$2,600k</td><td>開発力 &gt; 共同開発体制 &gt; 規制適合</td><td>技術セミナー</td></tr>
+  </table>
+  <h3>戦い方ごとの評価の目安（バランス確認スクリプトの結果）</h3>
+  <table>
+    <tr><th>戦い方</th><th>導入編</th><th>実践編</th></tr>
+    <tr><td>毎年、要求を読んで第1優先の施策へ配分</td><td>S</td><td>A（重視順が見えないため）</td></tr>
+    <tr><td>市場調査で重視順を確かめてから、要求を読んで配分</td><td>S</td><td>S</td></tr>
+    <tr><td>要求を読まず、決まった2〜3施策に固定</td><td>A</td><td>A</td></tr>
+    <tr><td>見込み引き合い（件数）を狙って展示会・デジタル中心</td><td>A</td><td>C</td></tr>
+    <tr><td>5施策に均等に配分（薄く広く）</td><td>C</td><td>D</td></tr>
+    <tr><td>投資も提案もしない</td><td>C</td><td>D</td></tr>
+  </table>
+  <p>ポイント：導入編は「要求を読む」だけで S に届き、実践編は「調べて・読んで・絞る」ことで初めて S に届く設計です。</p>
+</section>
+
+<section>
+  <h2 style="margin-top:6mm">8. よくある質問と既知の制約</h2>
+  <table>
+    <tr><th style="width:52mm">質問・状況</th><th>回答・対応</th></tr>
+    <tr><td>「均等配分」ボタンを押したら全部失注した</td><td>（導入編のみのボタンです）均等配分は5施策に20%ずつ配るため、どの施策も4分の1に届きません。2〜3施策に絞るよう案内してください。実践編では、配分を自分で考えさせるためボタンを表示していません。</td></tr>
+    <tr><td>大きな額を配ったのに訴求ラインに届かない</td><td>判定は金額ではなく「配分全体に占める割合」です（選択と集中）。スライダーの緑の目印まで積むか、他の施策を減らします。</td></tr>
+    <tr><td>提案後に配分を直したい</td><td>提案した年は配分を変更できません（判定に使った配分と支出を一致させるため）。辞退だけなら変更できます。</td></tr>
+    <tr><td>負け確定の案件はどうするのが正解？</td><td>辞退がいちばん傷が浅い選択です（未回答 ＜ 失注 ＜ 辞退）。</td></tr>
+    <tr><td>実践編で第1優先が分からない</td><td>関係する市場調査を買うと分かります。要求文には答えを書いていません。顧客プロファイルの意思決定者メモやマーケットニュースから推理させるのが狙いです。</td></tr>
+    <tr><td>画面が最初に戻った</td><td>再読み込みやタブを閉じると記録が消えます。復元はできないため、進行が大きく遅れる場合は総ターン数を減らして再開してください。</td></tr>
+  </table>
+  <h3>既知の制約</h3>
+  <ul>
+    <li>ログインは練習用のモックで、認証やユーザー管理はありません。チーム間の順位を自動集計する機能もありません（最終レポートの画面で共有してください）。</li>
+    <li>表示は日本語のみです。表示通貨は USD / JPY を切り替えられます。</li>
+    <li>船主・ニュース・レポートのデータはすべて架空のものです。</li>
+    <li>導入編では見込み引き合い件数は結果に影響しません（指標表示のみ）。</li>
+    <li>受注額は全額が資金に入るため、好調なプレイでは資金が初期の数十倍になります（評価では資金比を3倍で頭打ち）。</li>
+  </ul>
+
+  <h2 style="margin-top:6mm">9. 振り返りの問い</h2>
+  <ol>
+    <li>船主ごとに重視するポイントが異なることを、実際の担当顧客の要件整理にどう活かしますか？</li>
+    <li>今回の予算配分の反省点を、来期の販促・広告予算の計画にどう反映しますか？</li>
+    <li>顧客の「隠れた要件」を引き出すには、どんな質問をしますか？（実践編で市場調査を買った／買わなかった判断と合わせて）</li>
+    <li>勝ち目のない案件を「辞退」した経験・しなかった経験は、実務の案件管理とどう重なりますか？</li>
+    <li>引き合いの件数を追うことと、1件の質を上げることのバランスを、自社ではどう取っていますか？</li>
+    <li>資金繰りが苦しいときの判断（融資か撤退か）を、信用力の観点からどう考えますか？</li>
+  </ol>
+</section>
+</body>
+</html>

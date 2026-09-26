@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Maritime MG プレイヤーガイド Ver.5.1</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --navy: #0b1f3a; --sea: #0ea5e9; --sea-d: #0369a1; --sky: #dff3ff;
+    --sun: #fbbf24; --sun-l: #fff4cc; --coral: #f43f5e; --coral-l: #ffe4ea;
+    --mint: #10b981; --mint-l: #d9f7ea; --grape: #8b5cf6; --grape-l: #efe9ff;
+    --ink: #1e293b; --mute: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; height: 297mm; padding: 13mm 14mm 12mm; position: relative; overflow: hidden; page-break-after: always; background: #fff; }
+  .page:last-child { page-break-after: auto; }
+  .foot { position: absolute; bottom: 6mm; left: 14mm; right: 14mm; display: flex; justify-content: space-between; font-size: 8.5pt; color: var(--mute); z-index: 3; }
+  .emoji { font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif; }
+  h2 { font-size: 21pt; margin: 0 0 3mm; color: var(--navy); letter-spacing: .02em; }
+  h2 .tag { display: inline-block; font-size: 10pt; background: var(--sea); color: #fff; border-radius: 99px; padding: 1mm 4mm; vertical-align: middle; margin-right: 3mm; transform: rotate(-3deg); }
+  p { margin: 0; line-height: 1.7; font-size: 10.3pt; }
+
+  /* キャラクターと吹き出し */
+  .talk { display: flex; align-items: flex-end; gap: 3mm; position: relative; z-index: 2; }
+  .talk svg { flex: none; }
+  .bubble { position: relative; background: #fff; border: 2.5px solid var(--navy); border-radius: 6mm; padding: 3mm 5mm; font-size: 10.5pt; font-weight: 700; line-height: 1.6; color: var(--navy); box-shadow: 1.2mm 1.2mm 0 var(--navy); margin-bottom: 8mm; }
+  .bubble::before { content: ""; position: absolute; left: -4.2mm; bottom: 4mm; border: 2.2mm solid transparent; border-right: 3.6mm solid var(--navy); }
+  .bubble::after { content: ""; position: absolute; left: -2.8mm; bottom: 4.4mm; border: 1.8mm solid transparent; border-right: 3mm solid #fff; }
+  .bubble small { display: block; font-size: 8.5pt; color: var(--sea-d); letter-spacing: .1em; }
+
+  /* 表紙 */
+  .cover { background: linear-gradient(180deg, #7dd3fc 0%, #bae6fd 42%, #e0f2fe 60%); padding-top: 12mm; }
+  .cover .sky { position: absolute; inset: 0; z-index: 0; }
+  .cover .inner { position: relative; z-index: 2; }
+  .ver { display: inline-block; background: var(--coral); color: #fff; font-weight: 900; border-radius: 99px; padding: 1.3mm 5mm; font-size: 10pt; transform: rotate(-4deg); box-shadow: .8mm .8mm 0 var(--navy); }
+  .title { margin: 5mm 0 2mm; }
+  .title small { display: block; font-size: 13pt; font-weight: 800; color: var(--sea-d); letter-spacing: .25em; }
+  .title h1 { margin: 1mm 0 0; font-size: 42pt; line-height: 1.12; color: var(--navy); text-shadow: 1.2mm 1.2mm 0 #fff; letter-spacing: .01em; }
+  .title h1 em { font-style: normal; color: var(--coral); }
+  .subtitle { display: inline-block; margin-top: 3mm; background: var(--navy); color: #fff; font-weight: 800; font-size: 11.5pt; padding: 1.8mm 5mm; border-radius: 3mm; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 6mm; }
+  .step { background: #fff; border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3.5mm 4mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .step .n { display: inline-flex; width: 9mm; height: 9mm; border-radius: 50%; background: var(--sun); color: var(--navy); font-weight: 900; font-size: 13pt; align-items: center; justify-content: center; border: 2px solid var(--navy); margin-bottom: 1.5mm; }
+  .step b { display: block; font-size: 11.5pt; color: var(--navy); margin-bottom: .5mm; }
+  .step p { font-size: 9pt; line-height: 1.55; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 4mm; }
+  .mode { border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3mm 4.5mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .mode b { font-size: 12pt; color: var(--navy); }
+  .mode p { font-size: 9pt; line-height: 1.55; margin-top: .8mm; }
+  .url { display: flex; align-items: center; gap: 4mm; background: var(--navy); color: #fff; border-radius: 5mm; padding: 3.5mm 6mm; margin-top: 4mm; box-shadow: 1.2mm 1.2mm 0 var(--sea-d); }
+  .url small { display: block; font-size: 8.8pt; opacity: .85; }
+  .url b { font-size: 15pt; color: var(--sun); letter-spacing: .01em; }
+  .ship-cover { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; }
+
+  /* 2ページ目 */
+  .loop { display: grid; grid-template-columns: 1fr 7mm 1fr 7mm 1fr; margin: 3mm 0 5mm; }
+  .loop .arrow { display: flex; align-items: center; justify-content: center; }
+  .card { border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3.5mm 4mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .card .ic { display: flex; justify-content: center; margin-bottom: 1.5mm; }
+  .card b { display: block; font-size: 12pt; color: var(--navy); margin-bottom: 1mm; text-align: center; }
+  .card p { font-size: 9.2pt; line-height: 1.55; }
+  .tips { display: grid; gap: 3.2mm; margin-bottom: 5mm; }
+  .tip { display: grid; grid-template-columns: 13mm 1fr; gap: 3.5mm; align-items: center; background: #fff; border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3mm 4.5mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .tip .no { width: 13mm; height: 13mm; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15pt; color: #fff; border: 2px solid var(--navy); }
+  .tip b { font-size: 11.5pt; color: var(--navy); display: block; margin-bottom: .6mm; }
+  .tip p { font-size: 9.4pt; line-height: 1.55; }
+  .map { background: var(--navy); border-radius: 6mm; padding: 4.5mm 5.5mm; color: #fff; position: relative; }
+  .map h3 { margin: 0 0 3mm; font-size: 12.5pt; color: var(--sun); }
+  .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; }
+  .chip { background: #fff; border-radius: 4mm; padding: 2.5mm 2mm; text-align: center; color: var(--navy); }
+  .chip .w { font-weight: 900; font-size: 10.5pt; }
+  .chip .a { font-size: 11pt; color: var(--coral); line-height: 1.1; }
+  .chip .c { font-size: 8.8pt; font-weight: 700; color: var(--sea-d); }
+  .map .note { font-size: 8.6pt; opacity: .85; margin-top: 2.5mm; }
+
+  /* 3ページ目 */
+  .storm { position: relative; background: linear-gradient(160deg, #1e1b4b, #4c1d95 55%, #be185d); border-radius: 7mm; padding: 6mm 6mm 0; color: #fff; overflow: hidden; margin-bottom: 5mm; border: 2.5px solid var(--navy); box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .storm h2 { color: #fff; }
+  .storm h2 .tag { background: var(--sun); color: var(--navy); }
+  .storm p { font-size: 10.5pt; opacity: .95; max-width: 118mm; }
+  .storm svg { display: block; margin-top: 1mm; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
+  .feat { border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3.5mm 4.5mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .feat .t { display: flex; align-items: center; gap: 2mm; font-weight: 900; font-size: 11pt; color: var(--navy); margin-bottom: 1.2mm; }
+  .feat .t .emoji { font-size: 15pt; }
+  .feat p { font-size: 9pt; line-height: 1.55; }
+  .rank { display: grid; grid-template-columns: 27mm 1fr; gap: 5mm; align-items: center; background: var(--sun-l); border: 2.5px solid var(--navy); border-radius: 6mm; padding: 4mm 5mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .rank b { font-size: 12.5pt; color: var(--navy); display: block; margin-bottom: 1mm; }
+  .rank ul { margin: 0; padding-left: 5mm; font-size: 9.8pt; line-height: 1.75; }
+  .rank .sub { font-size: 8.8pt; color: var(--mute); margin-top: 1mm; }
+
+  .cmp { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 5mm; font-size: 9.3pt; border: 2.5px solid var(--navy); border-radius: 5mm; overflow: hidden; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .cmp th, .cmp td { padding: 2.2mm 3.5mm; text-align: left; border-bottom: 1.5px solid #cbd5e1; line-height: 1.45; }
+  .cmp tr:last-child td { border-bottom: none; }
+  .cmp thead th { background: var(--navy); color: #fff; white-space: nowrap; font-size: 10pt; }
+  .cmp thead th.i { background: var(--mint); } .cmp thead th.a { background: #f59e0b; }
+  .cmp td:first-child { font-weight: 800; color: var(--navy); background: var(--sky); width: 34mm; white-space: nowrap; }
+
+  /* 4ページ目 */
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; margin: 3mm 0 5mm; }
+  .q { background: #fff; border: 2.5px solid var(--navy); border-radius: 5mm; padding: 3mm 4mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .q b { display: block; font-size: 10.3pt; color: var(--navy); margin-bottom: 1mm; }
+  .q b::before { content: "Q"; display: inline-block; background: var(--coral); color: #fff; border-radius: 2mm; font-size: 8.5pt; padding: .2mm 1.8mm; margin-right: 2mm; }
+  .q p { font-size: 8.9pt; line-height: 1.55; }
+  .report { background: var(--grape-l); border: 2.5px solid var(--navy); border-radius: 6mm; padding: 4mm 5mm; box-shadow: 1.2mm 1.2mm 0 var(--navy); margin-bottom: 5mm; }
+  .report h3 { margin: 0 0 1.5mm; font-size: 12.5pt; color: var(--grape); }
+  .report ul { margin: 0; padding-left: 5mm; font-size: 9.4pt; line-height: 1.75; }
+  .finale { position: relative; background: linear-gradient(180deg, #fde68a 0%, #fdba74 45%, #fb7185 100%); border: 2.5px solid var(--navy); border-radius: 7mm; overflow: hidden; box-shadow: 1.2mm 1.2mm 0 var(--navy); }
+  .finale .txt { position: relative; z-index: 2; padding: 5mm 6mm 0; text-align: center; }
+  .finale .txt b { font-size: 19pt; color: var(--navy); display: block; }
+  .finale .txt p { font-size: 9.8pt; color: var(--navy); font-weight: 700; }
+  .finale .url { margin: 3mm 8mm 0; position: relative; z-index: 2; }
+</style>
+</head>
+<body>
+
+<!-- ===== 共通のイラスト（SVG シンボル） ===== -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- カモメ船長 -->
+    <symbol id="captain" viewBox="0 0 120 130">
+      <ellipse cx="60" cy="124" rx="30" ry="4" fill="#0b1f3a" opacity=".15"/>
+      <path d="M44 112 l-4 10 h10 z M76 112 l4 10 h-10 z" fill="#f97316" stroke="#0b1f3a" stroke-width="2.5" stroke-linejoin="round"/>
+      <ellipse cx="60" cy="86" rx="36" ry="32" fill="#fff" stroke="#0b1f3a" stroke-width="3"/>
+      <path d="M26 84 q-14 -6 -18 -22 q16 2 26 12" fill="#cbd5e1" stroke="#0b1f3a" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M94 84 q14 -6 18 -22 q-16 2 -26 12" fill="#cbd5e1" stroke="#0b1f3a" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M46 100 q14 8 28 0" fill="none" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="60" cy="52" r="28" fill="#fff" stroke="#0b1f3a" stroke-width="3"/>
+      <circle cx="49" cy="52" r="4.5" fill="#0b1f3a"/><circle cx="71" cy="52" r="4.5" fill="#0b1f3a"/>
+      <circle cx="50.5" cy="50.5" r="1.5" fill="#fff"/><circle cx="72.5" cy="50.5" r="1.5" fill="#fff"/>
+      <circle cx="41" cy="61" r="4" fill="#fda4af"/><circle cx="79" cy="61" r="4" fill="#fda4af"/>
+      <path d="M53 58 h14 l-7 10 z" fill="#fbbf24" stroke="#0b1f3a" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M32 36 q28 -30 56 0 z" fill="#0b1f3a"/>
+      <rect x="28" y="33" width="64" height="9" rx="4.5" fill="#0b1f3a"/>
+      <rect x="30" y="34.5" width="60" height="2" rx="1" fill="#fbbf24"/>
+      <circle cx="60" cy="24" r="6" fill="#fbbf24" stroke="#0b1f3a" stroke-width="1.5"/>
+      <path d="M60 20 v8 M57 25 q3 3 6 0" fill="none" stroke="#0b1f3a" stroke-width="1.5" stroke-linecap="round"/>
+    </symbol>
+    <!-- 貨物船 -->
+    <symbol id="ship" viewBox="0 0 400 190">
+      <g stroke="#0b1f3a" stroke-width="3" stroke-linejoin="round">
+        <circle cx="318" cy="22" r="9" fill="#fff" opacity=".9"/><circle cx="332" cy="10" r="7" fill="#fff" opacity=".8"/>
+        <rect x="304" y="30" width="22" height="34" rx="3" fill="#0b1f3a"/>
+        <rect x="304" y="38" width="22" height="7" fill="#f43f5e"/>
+        <rect x="282" y="60" width="72" height="60" rx="5" fill="#fff"/>
+        <rect x="292" y="70" width="12" height="10" rx="2" fill="#7dd3fc"/><rect x="310" y="70" width="12" height="10" rx="2" fill="#7dd3fc"/><rect x="328" y="70" width="12" height="10" rx="2" fill="#7dd3fc"/>
+        <rect x="292" y="88" width="48" height="6" rx="2" fill="#e2e8f0"/>
+        <rect x="60" y="92" width="44" height="28" fill="#38bdf8"/><rect x="104" y="92" width="44" height="28" fill="#fbbf24"/>
+        <rect x="148" y="92" width="44" height="28" fill="#10b981"/><rect x="192" y="92" width="44" height="28" fill="#f97316"/>
+        <rect x="82" y="64" width="44" height="28" fill="#8b5cf6"/><rect x="126" y="64" width="44" height="28" fill="#f43f5e"/>
+        <rect x="170" y="64" width="44" height="28" fill="#38bdf8"/><rect x="236" y="92" width="40" height="28" fill="#fbbf24"/>
+        <path d="M18 120 H382 L352 168 H52 Z" fill="#e11d48"/>
+        <path d="M30 136 H372" fill="none" stroke="#fff" stroke-width="5"/>
+      </g>
+      <text x="200" y="159" text-anchor="middle" font-size="17" font-weight="900" fill="#fff" font-family="Segoe UI, sans-serif" letter-spacing="3">MARITIME MG</text>
+    </symbol>
+    <!-- 波 -->
+    <symbol id="wave" viewBox="0 0 800 60" preserveAspectRatio="none">
+      <path d="M0 20 Q50 0 100 20 T200 20 T300 20 T400 20 T500 20 T600 20 T700 20 T800 20 V60 H0 Z"/>
+    </symbol>
+    <!-- 雲 -->
+    <symbol id="cloud" viewBox="0 0 120 60">
+      <path d="M20 50 a18 18 0 0 1 4 -35 a24 24 0 0 1 44 -6 a18 18 0 0 1 32 14 a14 14 0 0 1 0 27 z" fill="#fff" stroke="#0b1f3a" stroke-width="2.5"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ===== 1. 表紙 ===== -->
+<section class="page cover">
+  <svg class="sky" viewBox="0 0 210 297" preserveAspectRatio="none" width="100%" height="100%">
+    <circle cx="178" cy="30" r="14" fill="#fde047" stroke="#0b1f3a" stroke-width="1"/>
+    <g stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round">
+      <path d="M178 10 v-5 M178 50 v5 M158 30 h-5 M198 30 h5 M164 16 l-3.5 -3.5 M192 44 l3.5 3.5 M192 16 l3.5 -3.5 M164 44 l-3.5 3.5"/>
+    </g>
+  </svg>
+  <svg style="position:absolute; left:128mm; top:55mm; z-index:1" width="34mm" height="17mm"><use href="#cloud"/></svg>
+  <svg style="position:absolute; left:160mm; top:80mm; z-index:1" width="24mm" height="12mm"><use href="#cloud"/></svg>
+
+  <div class="inner">
+    <span class="ver">プレイヤーガイド Ver.5.1</span>
+    <div class="title">
+      <small>MARITIME MG</small>
+      <h1>5年で、<br><em>海の信頼</em>を<br>勝ち取れ！</h1>
+      <span class="subtitle"><span class="emoji">⚓</span> 船舶用機器メーカーの経営企画として、予算と提案で勝負！</span>
+    </div>
+
+    <div class="talk" style="margin-top:4mm">
+      <svg width="28mm" height="30mm"><use href="#captain"/></svg>
+      <div class="bubble"><small>カモメ船長</small>ようこそ、新人くん！ 予算を配って、船主さんの心をつかむ5年間の航海だ。いっしょに行こう！</div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><span class="n">1</span><b>名前を入れる</b><p>ログイン画面で「プレイヤー名」を入力。最終レポートに名前が載るよ。</p></div>
+      <div class="step"><span class="n">2</span><b>モードを選ぶ</b><p>はじめてなら「導入編」。慣れたら「実践編」に挑戦！</p></div>
+      <div class="step"><span class="n">3</span><b>ログイン！</b><p>メールとパスワードは、どんな文字でも OK（練習用の画面）。</p></div>
+    </div>
+    <div class="modes">
+      <div class="mode" style="background:var(--mint-l)"><b><span class="emoji">🌱</span> 導入編</b><p>資金 $500,000・信頼度 50。画面のヒントを見ながら、予算と提案の関係を体で覚えよう。</p></div>
+      <div class="mode" style="background:var(--sun-l)"><b><span class="emoji">🔥</span> 実践編</b><p>資金 $400,000・信頼度 40。市況は厳しく、顧客の本音は調べないと分からない本番モード。</p></div>
+    </div>
+    <div class="url"><span class="emoji" style="font-size:18pt">🔗</span><div><small>アクセスはこちら</small><b>https://maritime-mg-app.vercel.app/</b></div></div>
+  </div>
+
+  <svg class="ship-cover" viewBox="0 0 210 70" preserveAspectRatio="none" width="100%" height="70mm">
+    <use href="#wave" x="0" y="34" width="210" height="36" fill="#38bdf8"/>
+  </svg>
+  <svg style="position:absolute; left:52mm; bottom:14mm; z-index:1" width="105mm" height="50mm"><use href="#ship"/></svg>
+  <svg class="ship-cover" style="z-index:2" viewBox="0 0 210 70" preserveAspectRatio="none" width="100%" height="30mm">
+    <use href="#wave" x="-20" y="30" width="250" height="40" fill="#0284c7"/>
+  </svg>
+  <div class="foot" style="color:#e0f2fe"><span>Maritime MG プレイヤーガイド Ver.5.1</span><span>Confidential for Internal Training</span></div>
+</section>
+
+<!-- ===== 2. 1年のながれ・コツ ===== -->
+<section class="page" style="background:linear-gradient(180deg,#fff 0%,#fff 70%,var(--sky) 100%)">
+  <h2><span class="tag">基本</span>1年はこの3ステップ</h2>
+  <div class="talk">
+    <svg width="20mm" height="22mm"><use href="#captain"/></svg>
+    <div class="bubble" style="margin-bottom:5mm">迷ったら左のサイドバーを見るんだ。「今やること」を教えてくれるぞ！</div>
+  </div>
+  <div class="loop">
+    <div class="card" style="background:#e0f2fe"><div class="ic emoji" style="font-size:24pt">💰</div><b>① 予算を配る</b><p>5つの施策にスライダーで配って「確定」。確定しないと提案できないよ。</p></div>
+    <div class="arrow"><svg width="7mm" height="7mm" viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="#0b1f3a"/></svg></div>
+    <div class="card" style="background:var(--grape-l)"><div class="ic emoji" style="font-size:24pt">🤝</div><b>② 船主に提案</b><p>重視される要素から「訴求ポイント」を1つ選ぶ。受注か失注か、その場で分かる！</p></div>
+    <div class="arrow"><svg width="7mm" height="7mm" viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="#0b1f3a"/></svg></div>
+    <div class="card" style="background:var(--coral-l)"><div class="ic emoji" style="font-size:24pt">📈</div><b>③ ターン終了</b><p>サイドバー左下のボタンで決算。資金と信頼度が変わって次の年へ。</p></div>
+  </div>
+
+  <h2 style="font-size:17pt"><span class="emoji">🏆</span> 勝つためのコツ 3つ</h2>
+  <div class="tips">
+    <div class="tip"><div class="no" style="background:var(--coral)">1</div><div><b>船主の「①第1優先」に応える</b><p>重視項目は大事な順。第1優先で受注すると満額、2番目は80%、3番目は60%に目減り。</p></div></div>
+    <div class="tip"><div class="no" style="background:var(--sea)">2</div><div><b>力を入れる施策をしぼる</b><p>配分全体の「4分の1以上」を投じた施策だけが、提案の裏付けになる。5つに均等だと、どれも届かない。スライダーの緑の目印が合図！</p></div></div>
+    <div class="tip"><div class="no" style="background:var(--mint)">3</div><div><b>勝ち目がなければ「辞退」も作戦</b><p>放置（未回答）がいちばん信用を落とす。裏付けがない案件は「今期は辞退する」で傷を浅く。</p></div></div>
+  </div>
+
+  <div class="map">
+    <h3><span class="emoji">🗺️</span> 航海図：どの要求に、どの施策が効く？</h3>
+    <div class="chips">
+      <div class="chip"><div class="w">燃費・技術</div><div class="a">▼</div><div class="c">技術セミナー</div></div>
+      <div class="chip"><div class="w">サポート</div><div class="a">▼</div><div class="c">営業員の増員・訪問</div></div>
+      <div class="chip"><div class="w">価格</div><div class="a">▼</div><div class="c">国際海事展示会</div></div>
+      <div class="chip"><div class="w">実績</div><div class="a">▼</div><div class="c">業界誌広告</div></div>
+      <div class="chip"><div class="w">納期</div><div class="a">▼</div><div class="c">デジタル</div></div>
+    </div>
+    <p class="note">予算画面の水色のタグにも「〇〇の裏付け」と書いてあるよ。規制適合・開発力は「燃費・技術」、保守契約・保証条件は「サポート」の仲間。</p>
+  </div>
+  <svg style="position:absolute; right:10mm; bottom:9mm; opacity:.9" width="46mm" height="22mm"><use href="#ship"/></svg>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5.1</span><span>2</span></div>
+</section>
+
+<!-- ===== 3. 実践編 ===== -->
+<section class="page">
+  <div class="storm">
+    <h2><span class="tag">NEXT</span>実践編に挑戦しよう</h2>
+    <p>導入編で S が取れたら、次は荒れた海へ。お金も情報も足りない中で、あなたの「選択と集中」が試される！</p>
+    <svg viewBox="0 0 400 70" width="100%" height="24mm" preserveAspectRatio="xMidYMax meet">
+      <g fill="#fde047" stroke="#0b1f3a" stroke-width="2"><path d="M330 2 l-12 26 h10 l-8 24 l22 -32 h-11 l9 -18 z"/></g>
+      <use href="#ship" x="120" y="4" width="150" height="72"/>
+      <use href="#wave" x="-20" y="46" width="440" height="30" fill="#6366f1"/>
+    </svg>
+  </div>
+
+  <div class="talk" style="margin:-1mm 0 1mm">
+    <svg width="18mm" height="20mm"><use href="#captain"/></svg>
+    <div class="bubble" style="margin-bottom:4mm">ここからが本番だ。4つの新ルールを覚えておくんだぞ！</div>
+  </div>
+  <div class="grid2">
+    <div class="feat" style="background:var(--sun-l)"><div class="t"><span class="emoji">💵</span>本気度は $100k から</div><p>裏付けには、4分の1以上に加えて $100,000 以上の投資が必要。少額をばらまくと、どの提案も通らない（確定前に警告が出るよ）。</p></div>
+    <div class="feat" style="background:var(--grape-l)"><div class="t"><span class="emoji">🔍</span>顧客の本音は調べて分かる</div><p>重視項目は「順不同」でしか見えない。関係する市場調査を買うと重視順が分かり、その船主から受注すると信頼度 +2。有効期間は2年、古くなったら半額で更新。</p></div>
+    <div class="feat" style="background:var(--mint-l)"><div class="t"><span class="emoji">🌱</span>今年まいた種が、来年の商談に</div><p>「見込み引き合い」が 20件・35件に届くと、翌年に追加案件が届く。回答しなくてもペナルティなし。件数を取るか、裏付けに集中するか。</p></div>
+    <div class="feat" style="background:var(--coral-l)"><div class="t"><span class="emoji">🆘</span>資金が尽きたら、決断のとき</div><p>決算で資金がマイナスになると「緊急経営判断」。融資（信頼度で金利が決まる・最大2回）で続けるか、自主倒産か。借りたお金は最終年に返す。</p></div>
+  </div>
+
+  <div class="rank">
+    <svg viewBox="0 0 100 100" width="27mm" height="27mm">
+      <path d="M50 6 l12 26 28 3 -21 19 6 28 -25 -14 -25 14 6 -28 -21 -19 28 -3 z" fill="#fbbf24" stroke="#0b1f3a" stroke-width="3.5" stroke-linejoin="round"/>
+      <text x="50" y="66" text-anchor="middle" font-size="34" font-weight="900" fill="#0b1f3a" font-family="Segoe UI, sans-serif">S</text>
+    </svg>
+    <div>
+      <b>最高評価「S」の条件（3つとも達成）</b>
+      <ul>
+        <li>最終の信頼度が 95 以上</li>
+        <li>最終資金が初期資金の 130% 以上（融資は返済後で判定）</li>
+        <li>船主の第1優先に応えて受注した割合が 80% 以上</li>
+      </ul>
+      <p class="sub">それ以外は資金と信頼度の合計で A〜C。倒産・最終年の債務超過は D。</p>
+    </div>
+  </div>
+
+  <table class="cmp">
+    <thead><tr><th>ひと目でわかる違い</th><th class="i">🌱 導入編</th><th class="a">🔥 実践編</th></tr></thead>
+    <tbody>
+      <tr><td>スタート</td><td>資金 $500,000・信頼度 50</td><td>資金 $400,000・信頼度 40（市況も厳しめ）</td></tr>
+      <tr><td>裏付けの条件</td><td>配分全体の4分の1以上</td><td>4分の1以上 ＋ $100,000 以上</td></tr>
+      <tr><td>船主の重視順</td><td>最初から見える</td><td>市場調査で分かる（有効2年）</td></tr>
+      <tr><td>提案画面のヒント</td><td>裏付けの有無を表示</td><td>表示なし（自分で見極める）</td></tr>
+      <tr><td>追加案件</td><td>なし</td><td>見込み引き合い 20件・35件で翌年に届く</td></tr>
+      <tr><td>最終レポート</td><td>評価・スタイル分析・もしも</td><td>＋ ROI・CPA、年次レビュー</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5.1</span><span>3</span></div>
+</section>
+
+<!-- ===== 4. FAQ・出航 ===== -->
+<section class="page">
+  <div class="talk">
+    <svg width="20mm" height="22mm"><use href="#captain"/></svg>
+    <div class="bubble" style="margin-bottom:5mm"><small>こまったときは</small>よくある質問をまとめておいたぞ。</div>
+  </div>
+  <div class="faq">
+    <div class="q"><b>「提案を作成」が押せない</b><p>先にマーケティング予算を「確定」してね。投資しない年は「投資を見送る（$0）」でも確定できる。</p></div>
+    <div class="q"><b>「ターンを終了する」が押せない</b><p>こちらも予算の確定が必要。サイドバーのステップ表示で、次にやることを確認しよう。</p></div>
+    <div class="q"><b>提案したあとに配分を変えたい</b><p>提案した年は配分を変えられない（提案の根拠が変わってしまうため）。提案の前によく考えて。</p></div>
+    <div class="q"><b>全部の施策に配ったのに勝てない</b><p>均等配分だと、どの施策も「全体の4分の1」に届かない。2〜3施策にしぼろう。</p></div>
+    <div class="q"><b>負けそうな案件はどうする？</b><p>放置すると信頼度が大きく下がる。「今期は辞退する」なら、失注や放置より傷は浅い。</p></div>
+    <div class="q"><b>再読み込みしたら最初に戻った</b><p>記録はブラウザの中だけに保存される。プレイ中は再読み込みやタブを閉じるのを避けて。</p></div>
+  </div>
+
+  <div class="report">
+    <h3><span class="emoji">📊</span> 最終レポートの見どころ</h3>
+    <ul>
+      <li><b>総合評価と「なぜこの評価？」</b>… 資金・信頼度・第1優先の的中率から、評価の理由を解説</li>
+      <li><b>投資傾向の分析</b>… 配分から見えるプレイスタイル（例：技術訴求型、既存顧客深耕型）</li>
+      <li><b>もしも、あの時こうしていたら</b>… いちばん大きな取りこぼしと、どうすれば満額だったか</li>
+      <li><b>実践編ではさらに</b>… ROI・CPA などの B2B 指標と、年ごとの振り返り（年次レビュー）</li>
+    </ul>
+  </div>
+
+  <div class="finale">
+    <div class="txt">
+      <b><span class="emoji">🚢</span> さあ、出航しよう！</b>
+      <p>読むのはここまで。まずは導入編で5年間を走り切ってみよう。<br>最終レポートの「実業務へのヒント」を、明日の仕事につなげよう。</p>
+    </div>
+    <div class="url"><span class="emoji" style="font-size:18pt">🔗</span><div><small>アクセスはこちら（ブラウザで開くだけ・インストール不要）</small><b>https://maritime-mg-app.vercel.app/</b></div></div>
+    <svg viewBox="0 0 400 110" width="100%" height="36mm" preserveAspectRatio="xMidYMax meet" style="display:block; margin-top:2mm">
+      <use href="#captain" x="24" y="10" width="72" height="78"/>
+      <use href="#ship" x="150" y="12" width="190" height="90"/>
+      <use href="#wave" x="-20" y="80" width="440" height="30" fill="#0284c7"/>
+    </svg>
+  </div>
+  <div class="foot"><span>Maritime MG プレイヤーガイド Ver.5.1</span><span>4</span></div>
+</section>
+</body>
+</html>
