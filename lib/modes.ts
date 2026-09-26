@@ -30,6 +30,11 @@ export type ModeConfig = {
   /** 失注時の信頼度変動 */
   loseTrustDelta: number;
   /**
+   * 提案を辞退した場合の信頼度変動。
+   * 「無視（未回答）＜ 裏付けのない提案（失注）＜ 誠実な辞退」の順に傷が浅い。
+   */
+  declineTrustDelta: number;
+  /**
    * 船主の要求に回答しないままターンを終えた場合の信頼度変動（1件あたり）。
    * 顧客を無視するほうが「負ける提案」より悪い、という B2B の原則に合わせ、
    * 失注時より重くしている。
@@ -47,6 +52,20 @@ export type ModeConfig = {
   minSynergySpend: number;
   /** 最終レポートで B2B 指標（ROI・CPA など）を表示するか */
   showAdvancedMetrics: boolean;
+  /**
+   * 提案画面で、各訴求ポイントの裏付けになる施策と、訴求ラインに届いているかを見せるか。
+   * 実践編では見せず、予算配分の段階で自分で見極めさせる。
+   */
+  showProposalBacking: boolean;
+  /** 市場調査の示唆を、関係する船主の顧客プロファイルに表示するか */
+  researchInsightsInProfile: boolean;
+  /**
+   * 船主の重視項目の「順番」を、関係する市場調査を購入するまで隠すか。
+   * 隠している間は順不同で表示し、第1優先がどれかは分からない。
+   */
+  hidePriorityOrderUntilResearched: boolean;
+  /** 関係する市場調査を購入済みの船主から受注したときの、信頼度の上乗せ */
+  researchWinTrustBonus: number;
   /** 決算で資金がマイナスになったときの緊急融資の条件 */
   emergencyLoan: EmergencyLoanConfig;
 };
@@ -100,7 +119,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     highlights: [
       "初期資金 $500,000 / 信頼度 50",
       "船主の想定予算は標準水準",
-      "訴求ポイントに対応するチャネルへ配分の25%以上を投じれば受注",
+      "訴求ポイントに対応する施策へ、配分全体の4分の1（25%）以上を投じれば受注",
       "第1優先に応えると満額、第2・第3優先は受注額80%・60%",
     ],
     initialFunds: initialGameState.availableFunds,
@@ -110,10 +129,15 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     settlementExpenseRate: 1,
     winTrustDelta: 8,
     loseTrustDelta: -8,
+    declineTrustDelta: -4,
     ignoreTrustDelta: -10,
     minSynergyShare: 0.25,
     minSynergySpend: 0,
     showAdvancedMetrics: false,
+    showProposalBacking: true,
+    researchInsightsInProfile: true,
+    hidePriorityOrderUntilResearched: false,
+    researchWinTrustBonus: 0,
     emergencyLoan: {
       workingCapital: 100_000,
       creditLimit: initialGameState.availableFunds,
@@ -131,9 +155,10 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     highlights: [
       "初期資金 $400,000 / 信頼度 40",
       "船主の想定予算 −30%、決算の売上 −30%・固定費 +20%",
-      "受注には対応チャネルへ配分の25%以上かつ $100,000 以上の投資が必要",
-      "失注時の信頼度ペナルティ −12（未回答は −15）",
+      "受注には対応する施策へ、配分全体の4分の1（25%）以上かつ $100,000 以上の投資が必要",
+      "失注時の信頼度ペナルティ −12（辞退は −6、未回答は −15）",
       "決算で資金が不足すると、緊急融資（最大2回・信頼度で金利が決まる）か自主倒産かを判断",
+      "船主の重視順は、関係する市場調査を買うまで分からない（調査済みの船主から受注すると信頼度 +2）",
       "最終レポートで ROI・CPA などの B2B 指標と年次レビューを評価",
     ],
     initialFunds: 400_000,
@@ -143,10 +168,15 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     settlementExpenseRate: 1.2,
     winTrustDelta: 6,
     loseTrustDelta: -12,
+    declineTrustDelta: -6,
     ignoreTrustDelta: -15,
     minSynergyShare: 0.25,
     minSynergySpend: 100_000,
     showAdvancedMetrics: true,
+    showProposalBacking: false,
+    researchInsightsInProfile: false,
+    hidePriorityOrderUntilResearched: true,
+    researchWinTrustBonus: 2,
     emergencyLoan: {
       workingCapital: 200_000,
       creditLimit: 400_000,

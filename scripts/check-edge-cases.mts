@@ -7,6 +7,7 @@ import {
   advanceGameState,
   canEndTurn,
   declareBankruptcy,
+  declineRequest,
   finalizeGame,
   hasProposedThisTurn,
   purchaseResearch,
@@ -14,7 +15,7 @@ import {
   spendableFunds,
   unansweredRequests,
 } from "../lib/game";
-import { buildFinalReport } from "../lib/finalReport";
+import { S_RANK_MIN_PRIMARY_HIT, buildFinalReport } from "../lib/finalReport";
 import { buildYearlyReview } from "../lib/yearlyReview";
 import { loanInterest, outstandingDebt } from "../lib/loans";
 import { emptyPlan, marketingChannels } from "../lib/marketing";
@@ -25,10 +26,22 @@ import {
   loanBaseRate,
   synergyRuleFor,
 } from "../lib/modes";
-import { channelForPriority, evaluateSynergy, priorityRewardRate } from "../lib/synergy";
+import {
+  backingStatus,
+  channelForPriority,
+  evaluateSynergy,
+  prioritiesForChannel,
+  priorityRewardRate,
+} from "../lib/synergy";
 import { customerDeals, customers } from "../lib/customers";
 import { getChannel } from "../lib/marketing";
-import { researchReports } from "../lib/research";
+import {
+  insightsForCustomer,
+  reportCustomerIds,
+  reportsForCustomer,
+  researchReports,
+} from "../lib/research";
+import { displayedPriorities, isPriorityOrderKnown } from "../lib/customers";
 import type { GameState, MarketingPlan } from "../lib/types";
 
 let failures = 0;
@@ -510,6 +523,127 @@ section("年次の記録（turnLog）と年次レビュー");
   const br = buildFinalReport(bankrupt).yearlyReview!;
   check("倒産：倒産した年までレビュー", br.length === 1 && br[0].bankrupt);
   check("倒産：要因を説明", br[0].bads.some((t) => t.includes("倒産")));
+}
+
+// ---------------------------------------------------------------------------
+section("辞退：勝ち目のない要求は、失注や未回答より浅い傷で見送れる");
+{
+  for (const mode of ["intro", "advanced"] as const) {
+    const cfg = getModeConfig(mode);
+    check(`${cfg.label}: 未回答 < 失注 < 辞退 の順に傷が浅い`, cfg.ignoreTrustDelta < cfg.loseTrustDelta && cfg.loseTrustDelta < cfg.declineTrustDelta && cfg.declineTrustDelta < 0);
+  }
+  const base = createInitialGameState("advanced");
+  const req = getScenarioTurn(1, "advanced").requests[0];
+  check("配分の確定前は辞退できない", declineRequest(base, req.id) === base);
+  const s0 = commit(base, plan({ expo: 80_000, digital: 80_000, seminar: 80_000 }));
+  const s1 = declineRequest(s0, req.id);
+  check("辞退として記録", s1.dealOutcomes[req.id] === "declined");
+  check("信頼度 −6（実践編）", s1.trustScore === s0.trustScore - 6, `${s1.trustScore}`);
+  check("関係性 −4", (s1.relationshipDeltas[req.owner] ?? 0) === -4);
+  check("受注額は入らない", s1.availableFunds === s0.availableFunds);
+  check("配分はロックされない（提案扱いにしない）", !hasProposedThisTurn(s1));
+  check("二重に辞退できない", declineRequest(s1, req.id) === s1);
+  check("辞退後は提案できない", resolveProposal(s1, req.id, req.priorities[0]) === null);
+  check("未回答に数えない", !unansweredRequests(s1).some((r) => r.id === req.id));
+  const r = advanceGameState(s1);
+  check("年の記録に辞退", r.state.turnLog[0].declinedRequestIds.includes(req.id));
+  check("未回答ペナルティの対象外", !r.state.turnLog[0].unansweredRequestIds.includes(req.id));
+  const done = { ...r.state, gameCompleted: true };
+  const review = buildFinalReport(done).yearlyReview!;
+  check("年次レビュー：辞退を説明", review[0].bads.some((t) => t.includes("辞退")));
+  check("年次レビュー：未回答と区別", !review[0].bads.some((t) => t.includes(req.owner) && t.includes("回答しませんでした")));
+  const owner = customers.find((c) => c.name === req.owner)!;
+  check("船主カルテ：辞退と表示", customerDeals(owner, done).some((d) => d.requestId === req.id && d.status === "declined"));
+  check("B2B 指標：辞退は提案件数に含めない", buildFinalReport(done).b2bMetrics!.proposals === 0);
+  const ended = { ...s1, gameCompleted: true };
+  check("終了後は辞退できない", declineRequest(ended, getScenarioTurn(1, "advanced").requests[1].id) === ended);
+}
+
+section("訴求ラインの表示（予算画面）");
+{
+  const intro = synergyRuleFor("intro");
+  // 大金をほぼ均等に配分：どれも4分の1に届かない
+  const spread = plan({ expo: 270_000, fieldSales: 250_000, seminar: 250_000, tradePress: 200_000, digital: 150_000 });
+  const st = backingStatus(spread, "expo", intro);
+  check("ほぼ均等の配分は訴求ライン未達", !st.qualifies && st.reason === "lowShare");
+  check("訴求ライン = 他の配分 $850k の 1/3（刻み切り上げ）", st.lineAmount === 290_000, `${st.lineAmount}`);
+  check("あと $20k", st.needed === 20_000);
+  const reached = backingStatus({ ...spread, expo: 290_000 }, "expo", intro);
+  check("訴求ラインまで積むと到達", reached.qualifies && reached.needed === 0);
+  check("判定ロジックと一致", reached.qualifies === evaluateSynergy("価格", ["価格"], { ...spread, expo: 290_000 }, intro).won);
+  const adv = backingStatus(plan({ seminar: 80_000, expo: 80_000, digital: 80_000 }), "seminar", synergyRuleFor("advanced"));
+  check("実践編：$100k 未満は理由を示す", !adv.qualifies && adv.reason === "underinvested" && adv.needed === 20_000, JSON.stringify(adv));
+  check("未配分", backingStatus(emptyPlan(), "digital", intro).reason === "none");
+  check("提案画面の裏付け表示は導入編のみ", getModeConfig("intro").showProposalBacking && !getModeConfig("advanced").showProposalBacking);
+  check("施策ごとの裏付けヒント", prioritiesForChannel("fieldSales").includes("サポート体制") && prioritiesForChannel("expo").includes("価格"));
+}
+
+section("要求データ：第1優先が特定の施策に偏らない");
+{
+  const count: Record<string, number> = {};
+  let total = 0;
+  for (let t = 1; t <= 5; t++) {
+    for (const r of getScenarioTurn(t, "intro").requests) {
+      const c = channelForPriority(r.priorities[0]);
+      count[c] = (count[c] ?? 0) + 1;
+      total++;
+    }
+  }
+  check("5施策すべてが第1優先に登場", Object.keys(count).length === 5, JSON.stringify(count));
+  const top3 = Object.values(count).sort((a, b) => b - a).slice(0, 3).reduce((a, b) => a + b, 0);
+  check(
+    "要求を読まない3施策固定では第1優先的中率が S の条件に届かない",
+    top3 / total < S_RANK_MIN_PRIMARY_HIT,
+    `${top3}/${total}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+section("市場調査：船主の理解につながる");
+{
+  check("すべてのレポートに関係する船主がいる", researchReports.every((r) => reportCustomerIds(r).length > 0));
+  // 船主が初めて要求を出す年までに、関係するレポートを買える
+  for (const c of customers) {
+    let firstTurn = 0;
+    for (let t = 1; t <= 5 && !firstTurn; t++) {
+      if (getScenarioTurn(t, "advanced").requests.some((r) => r.owner === c.name)) firstTurn = t;
+    }
+    check(
+      `${c.name}：初めての要求の年までに調査を買える`,
+      reportsForCustomer(c.id).some((r) => r.availableFrom <= firstTurn),
+    );
+  }
+
+  const subsidy = researchReports.find((r) => r.id === "r-reg-subsidy")!;
+  const setouchi = customers.find((c) => c.id === "setouchi")!;
+  const intro = createInitialGameState("intro");
+  const introBought = purchaseResearch(intro, subsidy.id, subsidy.cost);
+  check("導入編：購入前は示唆なし", insightsForCustomer(intro.researchPurchases, "setouchi").length === 0);
+  check("導入編：購入すると関係する船主の示唆が増える", insightsForCustomer(introBought.researchPurchases, "setouchi").length === 1);
+  check("導入編：重視順は最初から見える", isPriorityOrderKnown(intro, setouchi.name));
+  check("導入編：プロファイルに示唆を表示", getModeConfig("intro").researchInsightsInProfile && !getModeConfig("advanced").researchInsightsInProfile);
+
+  const adv = createInitialGameState("advanced");
+  const req = getScenarioTurn(1, "advanced").requests.find((r) => r.owner === setouchi.name)!;
+  check("実践編：調査前は重視順が見えない", !isPriorityOrderKnown(adv, setouchi.name));
+  const hidden = displayedPriorities(adv, setouchi.name, req.priorities);
+  check("実践編：調査前は順不同（五十音順）で表示", !hidden.ordered && hidden.items.join() === [...req.priorities].sort((a, b) => a.localeCompare(b, "ja")).join());
+  const advBought = purchaseResearch(adv, subsidy.id, subsidy.cost);
+  check("実践編：関係する調査を買うと重視順が見える", isPriorityOrderKnown(advBought, setouchi.name));
+  check("実践編：関係しない船主は見えないまま", !isPriorityOrderKnown(advBought, "Pacific Ocean Lines"));
+  check("実践編：見える順番は本来の重視順", displayedPriorities(advBought, setouchi.name, req.priorities).items.join() === req.priorities.join());
+
+  // 調査済みの船主から受注すると信頼度 +2
+  const backed = plan({ fieldSales: 150_000, expo: 150_000, digital: 150_000 });
+  const won = resolveProposal(commit(advBought, backed), req.id, req.priorities[0])!;
+  const cfg = getModeConfig("advanced");
+  check("実践編：調査済みの船主から受注すると +2", won.outcome === "won" && won.researchBonus === 2 && won.trustDelta === cfg.winTrustDelta + 2, JSON.stringify({ t: won.trustDelta, b: won.researchBonus }));
+  const plain = resolveProposal(commit(adv, backed), req.id, req.priorities[0])!;
+  check("実践編：未調査なら上乗せなし", plain.researchBonus === 0 && plain.trustDelta === cfg.winTrustDelta);
+  const introWon = resolveProposal(commit(introBought, backed), req.id, req.priorities[0])!;
+  check("導入編：上乗せなし", introWon.researchBonus === 0);
+  const lost = resolveProposal(commit(advBought, plan({ seminar: 300_000 })), req.id, req.priorities[0])!;
+  check("失注時は上乗せなし", lost.outcome === "lost" && lost.researchBonus === 0);
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

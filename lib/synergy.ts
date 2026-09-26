@@ -61,6 +61,19 @@ export function channelForPriority(priority: string): MarketingChannelId {
   return axisChannel[axisForPriority(priority)];
 }
 
+/** そのチャネルが裏付けになる評価軸 */
+export function axisForChannel(channel: MarketingChannelId): FitAxisId {
+  return (Object.keys(axisChannel) as FitAxisId[]).find(
+    (axis) => axisChannel[axis] === channel,
+  )!;
+}
+
+/** そのチャネルが裏付けになる、船主要求の重視項目の例（予算画面のヒント用） */
+export function prioritiesForChannel(channel: MarketingChannelId): string[] {
+  const axis = axisForChannel(channel);
+  return Object.keys(priorityAxisMap).filter((p) => priorityAxisMap[p] === axis);
+}
+
 /**
  * 重視順位ごとの報酬率（受注額・信頼度上昇にかける倍率）。
  * 船主要求の priorities は重要な順に並んでいる。
@@ -187,6 +200,56 @@ export function evaluateSynergy(
       : additionalSpendNeeded(plan, requiredChannel, rule.minShare, rule.minSpend),
     reason,
     won,
+  };
+}
+
+/**
+ * そのチャネルが訴求ラインに届いているか、届いていなければ何が足りないか（予算画面の表示用）。
+ * lineAmount は、他のチャネルの配分をそのままにした場合に訴求ラインへ届く金額。
+ * チャネルの上限を超える場合は、他のチャネルを減らさない限り届かない。
+ */
+export type BackingStatus = {
+  qualifies: boolean;
+  /** 未配分 / 配分比が足りない / 最低投資額に届かない / 到達 */
+  reason: "none" | "lowShare" | "underinvested" | "match";
+  /** 訴求ラインに届く金額 */
+  lineAmount: number;
+  /** あといくら必要か（到達時は 0） */
+  needed: number;
+};
+
+export function backingStatus(
+  plan: MarketingPlan,
+  channel: MarketingChannelId,
+  rule: SynergyRule,
+): BackingStatus {
+  const amount = plan[channel];
+  const others = planTotal(plan) - amount;
+  // s / (others + s) ≥ q を満たす最小の s（刻み単位に切り上げ）
+  const byShare =
+    rule.minShare >= 1
+      ? Infinity
+      : (rule.minShare * others) / (1 - rule.minShare);
+  const lineAmount = Math.max(
+    BUDGET_STEP,
+    rule.minSpend,
+    Math.ceil(byShare / BUDGET_STEP - 1e-9) * BUDGET_STEP,
+  );
+  const qualifies =
+    amount > 0 &&
+    meetsShare(plan, channel, rule.minShare) &&
+    amount >= rule.minSpend;
+  return {
+    qualifies,
+    reason: qualifies
+      ? "match"
+      : amount <= 0
+        ? "none"
+        : !meetsShare(plan, channel, rule.minShare)
+          ? "lowShare"
+          : "underinvested",
+    lineAmount,
+    needed: qualifies ? 0 : Math.max(0, lineAmount - amount),
   };
 }
 

@@ -1,4 +1,5 @@
-import { getScenarioTurn } from "./modes";
+import { getModeConfig, getScenarioTurn } from "./modes";
+import { researchedCustomerIds } from "./research";
 import type { GameState, ProposalRecord } from "./types";
 
 /** 評価軸（期待水準と提供力を同じ 0–100 スケールで比較する） */
@@ -7,7 +8,7 @@ export type FitAxisId = "price" | "delivery" | "fuel" | "support" | "record";
 export const fitAxes: { id: FitAxisId; label: string; note: string }[] = [
   { id: "price", label: "価格競争力", note: "見積価格と値引き余地" },
   { id: "delivery", label: "納期", note: "納期の短さと確約度" },
-  { id: "fuel", label: "燃費性能", note: "燃費・排出性能の水準" },
+  { id: "fuel", label: "燃費・技術", note: "燃費・排出性能と、規制対応の技術力" },
   { id: "support", label: "サポート体制", note: "拠点・保守対応の手厚さ" },
   { id: "record", label: "実績評価", note: "同種案件の納入実績と評判" },
 ];
@@ -102,7 +103,7 @@ export const customers: Customer[] = [
     decisionMaker: {
       name: "Ms. Ingrid Solberg",
       role: "技術本部長",
-      note: "規制適合を最優先。補助金申請の支援まで含めた提案を高く評価する。",
+      note: "規制適合は前提条件。補助金を活用した初期投資の圧縮を重視し、申請支援まで含めた提案を高く評価する。",
     },
     expectations: {
       price: 55,
@@ -172,6 +173,47 @@ export function currentRelationship(
   return Math.max(0, Math.min(100, customer.relationship + delta));
 }
 
+/** 船主名（ターンデータの owner）から顧客データを引く */
+export function customerByName(name: string): Customer | undefined {
+  return customers.find((c) => c.name === name);
+}
+
+/** その船主について、関係する市場調査を購入済みか */
+export function isCustomerResearched(state: GameState, ownerName: string): boolean {
+  const customer = customerByName(ownerName);
+  return customer
+    ? researchedCustomerIds(state.researchPurchases).has(customer.id)
+    : false;
+}
+
+/**
+ * その船主の重視項目の順番（第1優先がどれか）が見えるか。
+ * 実践編では、関係する市場調査を購入するまで見えない。
+ */
+export function isPriorityOrderKnown(state: GameState, ownerName: string): boolean {
+  return (
+    !getModeConfig(state.mode).hidePriorityOrderUntilResearched ||
+    isCustomerResearched(state, ownerName)
+  );
+}
+
+/**
+ * 画面に並べる重視項目。順番が見えない場合は、重視順が伝わらないよう五十音順（順不同）にする。
+ */
+export function displayedPriorities(
+  state: GameState,
+  ownerName: string,
+  priorities: string[],
+): { items: string[]; ordered: boolean } {
+  const ordered = isPriorityOrderKnown(state, ownerName);
+  return {
+    items: ordered
+      ? priorities
+      : [...priorities].sort((a, b) => a.localeCompare(b, "ja")),
+    ordered,
+  };
+}
+
 /** 期待水準と提供力の差（プラス = 期待を上回る） */
 export function fitGap(
   expectations: FitScores,
@@ -191,7 +233,7 @@ export function shortfallAxes(
     .filter((id) => fitGap(expectations, capability, id) <= -10);
 }
 
-export type DealStatus = "won" | "lost" | "ignored" | "pending";
+export type DealStatus = "won" | "lost" | "declined" | "ignored" | "pending";
 
 /** 船主との取引履歴 1 件（プレイヤーの提案結果から組み立てる） */
 export type CustomerDeal = {
@@ -210,6 +252,7 @@ export type CustomerDeal = {
 /**
  * その船主から届いた要求と、プレイヤーの対応結果を年順に返す。
  * - 提案済み → 受注 / 失注
+ * - 辞退した → 辞退
  * - 過去の年で未提案 → 未回答
  * - 今年で未提案 → 対応待ち（ゲーム終了後は未回答）
  */
@@ -227,7 +270,9 @@ export function customerDeals(
         ? proposal.won
           ? "won"
           : "lost"
-        : turn < state.turn || state.gameCompleted
+        : state.dealOutcomes[r.id] === "declined"
+          ? "declined"
+          : turn < state.turn || state.gameCompleted
           ? "ignored"
           : "pending";
       deals.push({

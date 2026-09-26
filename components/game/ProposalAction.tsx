@@ -27,6 +27,10 @@ export function ProposalAction({ request }: { request: ShipownerRequest }) {
             <Icon name="check" className="h-3.5 w-3.5" />
             受注！
           </Badge>
+        ) : outcome === "declined" ? (
+          <Badge tone="warning" className="h-8 px-3">
+            辞退
+          </Badge>
         ) : (
           <Badge tone="negative" className="h-8 px-3">
             <Icon name="alert" className="h-3.5 w-3.5" />

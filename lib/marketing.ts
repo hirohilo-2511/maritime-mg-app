@@ -35,7 +35,7 @@ export const marketingChannels: MarketingChannel[] = [
     id: "expo",
     name: "国際海事展示会",
     description:
-      "Posidonia / SMM などへの出展。大手船主の意思決定層と直接接点を持てるが、費用は大きい。",
+      "Posidonia / SMM などへの出展。大手船主の決裁者と価格・条件を直接詰められるが、費用は大きい。",
     icon: "megaphone",
     max: 400_000,
     leadEfficiency: 6,
@@ -46,7 +46,7 @@ export const marketingChannels: MarketingChannel[] = [
     id: "fieldSales",
     name: "営業員の増員・訪問",
     description:
-      "既存顧客のフォローと新規開拓。継続的な関係構築に効くが、成果が出るまで時間がかかる。",
+      "既存顧客のフォローと新規開拓。継続訪問で保守・サポート体制への安心感を示せるが、成果が出るまで時間がかかる。",
     icon: "customers",
     max: 300_000,
     leadEfficiency: 5,
@@ -68,7 +68,7 @@ export const marketingChannels: MarketingChannel[] = [
     id: "tradePress",
     name: "業界誌広告",
     description:
-      "Maritime Daily などへの継続出稿。広く認知を取れるが、引き合いへの転換率は低め。",
+      "Maritime Daily などへの継続出稿。納入実績を業界に広く示せるが、引き合いへの転換率は低め。",
     icon: "book",
     max: 200_000,
     leadEfficiency: 4,
@@ -79,7 +79,7 @@ export const marketingChannels: MarketingChannel[] = [
     id: "digital",
     name: "デジタル / オンライン",
     description:
-      "検索広告とウェビナー。低コストで件数を稼げるが、大型案件の信頼獲得には繋がりにくい。",
+      "検索広告とウェビナー、問い合わせへの即応。納期やスピード感を示せ、低コストで件数も稼げるが、大型案件の信頼獲得には繋がりにくい。",
     icon: "globe",
     max: 150_000,
     leadEfficiency: 7,

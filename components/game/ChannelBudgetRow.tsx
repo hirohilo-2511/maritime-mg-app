@@ -3,8 +3,17 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { useMoney } from "@/components/game/SettingsProvider";
+import { fitAxes } from "@/lib/customers";
 import { BUDGET_STEP, type MarketingChannel } from "@/lib/marketing";
+import {
+  axisForChannel,
+  prioritiesForChannel,
+  type BackingStatus,
+} from "@/lib/synergy";
 import type { ChannelEffect } from "@/lib/types";
+
+/** ヒントに並べる重視項目の数（多すぎると答えの一覧になるため絞る） */
+const HINT_PRIORITIES = 3;
 
 /** チャネル 1 つの予算スライダーと見込み効果 */
 export function ChannelBudgetRow({
@@ -12,7 +21,8 @@ export function ChannelBudgetRow({
   amount,
   effect,
   share,
-  qualifies,
+  status,
+  minSpend,
   disabled = false,
   onChange,
 }: {
@@ -21,14 +31,22 @@ export function ChannelBudgetRow({
   effect: ChannelEffect;
   /** 配分全体に占める割合（0–1） */
   share: number;
-  /** 提案の受注条件（配分比・最低投資額）を満たしているか */
-  qualifies: boolean;
+  /** 訴求ラインへの到達状況 */
+  status: BackingStatus;
+  /** 訴求に必要な最低投資額（0 = 条件なし） */
+  minSpend: number;
   /** 提案済み・ゲーム終了後など、配分を変更できない状態 */
   disabled?: boolean;
   onChange: (amount: number) => void;
 }) {
   const { money } = useMoney();
   const ratio = channel.max > 0 ? (amount / channel.max) * 100 : 0;
+  const axisLabel =
+    fitAxes.find((a) => a.id === axisForChannel(channel.id))?.label ?? "";
+  const hints = prioritiesForChannel(channel.id);
+  // 他の配分をそのままにしたとき、訴求ラインに届く位置（上限を超える場合は表示しない）
+  const lineReachable = status.lineAmount <= channel.max;
+  const linePos = (status.lineAmount / channel.max) * 100;
 
   return (
     <li className="px-5 py-4">
@@ -51,26 +69,53 @@ export function ChannelBudgetRow({
           <p className="mt-1 text-[13px] leading-relaxed text-navy-500">
             {channel.description}
           </p>
+          {/* どの要求の裏付けになるかのヒント */}
+          <p
+            className="mt-1.5 inline-flex flex-wrap items-center gap-1 rounded-md bg-sea-500/10 px-2 py-0.5 text-[11px] text-sea-600"
+            title={`裏付けになる重視項目：${hints.join("・")}`}
+          >
+            <Icon name="check" className="h-3 w-3" />
+            <span className="font-semibold">{axisLabel}の裏付け</span>
+            <span className="text-navy-500">
+              （{hints.slice(0, HINT_PRIORITIES).join("・")}
+              {hints.length > HINT_PRIORITIES ? " など" : ""}）
+            </span>
+          </p>
 
           {/* スライダー */}
           <div className="mt-3">
-            <input
-              type="range"
-              min={0}
-              max={channel.max}
-              step={BUDGET_STEP}
-              value={amount}
-              disabled={disabled}
-              onChange={(e) => onChange(Number(e.target.value))}
-              aria-label={`${channel.name}への配分額`}
-              aria-valuetext={money(amount)}
-              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-navy-200 accent-navy-800 disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: `linear-gradient(to right, var(--color-navy-700) ${ratio}%, var(--color-navy-200) ${ratio}%)`,
-              }}
-            />
+            <div className="relative">
+              <input
+                type="range"
+                min={0}
+                max={channel.max}
+                step={BUDGET_STEP}
+                value={amount}
+                disabled={disabled}
+                onChange={(e) => onChange(Number(e.target.value))}
+                aria-label={`${channel.name}への配分額`}
+                aria-valuetext={money(amount)}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-navy-200 accent-navy-800 disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  background: `linear-gradient(to right, var(--color-navy-700) ${ratio}%, var(--color-navy-200) ${ratio}%)`,
+                }}
+              />
+              {/* 訴求ラインの目印 */}
+              {lineReachable && !disabled ? (
+                <span
+                  className="pointer-events-none absolute -top-1 h-4 w-0.5 rounded bg-emerald-500"
+                  style={{ left: `${linePos}%` }}
+                  aria-hidden
+                />
+              ) : null}
+            </div>
             <div className="mt-1 flex justify-between text-[10px] text-navy-400 tabular">
               <span>$0</span>
+              {lineReachable && !disabled ? (
+                <span className="text-emerald-600">
+                  訴求ライン {money(status.lineAmount)}
+                </span>
+              ) : null}
               <span>上限 {money(channel.max)}</span>
             </div>
           </div>
@@ -82,10 +127,19 @@ export function ChannelBudgetRow({
             ))}
             {amount > 0 ? (
               <>
-                <Badge tone={qualifies ? "positive" : "neutral"}>
-                  {qualifies ? <Icon name="check" className="h-3 w-3" /> : null}
-                  配分比 {Math.round(share * 100)}%
-                  {qualifies ? " · 訴求ライン到達" : ""}
+                <Badge tone={status.qualifies ? "positive" : "warning"}>
+                  {status.qualifies ? (
+                    <Icon name="check" className="h-3 w-3" />
+                  ) : (
+                    <Icon name="alert" className="h-3 w-3" />
+                  )}
+                  {status.qualifies
+                    ? `全体の${Math.round(share * 100)}% · 訴求ライン到達`
+                    : status.reason === "underinvested"
+                      ? `${money(minSpend)} 未満のため裏付けにならない（あと ${money(status.needed)}）`
+                      : lineReachable
+                        ? `全体の${Math.round(share * 100)}% · 4分の1に未達（あと ${money(status.needed)}、または他を減らす）`
+                        : `全体の${Math.round(share * 100)}% · 他の施策を減らさないと4分の1に届かない`}
                 </Badge>
                 <Badge tone="info">見込み引き合い {effect.leads}件</Badge>
                 <Badge tone="positive">信頼度 +{effect.trustDelta}</Badge>

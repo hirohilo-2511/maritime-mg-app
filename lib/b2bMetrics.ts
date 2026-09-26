@@ -67,9 +67,12 @@ export function buildB2bMetrics(state: GameState): B2bMetrics {
       t.requests.map((r) => [r.id, { turn: t.turn, budget: r.budget }] as const),
     ),
   );
+  // 辞退は提案していないため、提案件数・受注率には含めない
   const deals = Object.entries(state.dealOutcomes).flatMap(([id, outcome]) => {
     const req = requestIndex.get(id);
-    return req ? [{ ...req, won: outcome === "won" }] : [];
+    return req && outcome !== "declined"
+      ? [{ ...req, won: outcome === "won" }]
+      : [];
   });
 
   const turnsPlayed = Array.from(

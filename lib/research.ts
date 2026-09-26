@@ -31,7 +31,14 @@ export type ResearchReport = {
   dataLabel: string;
   data: ResearchDatum[];
   /** 購入後に見える示唆 */
-  insights: string[];
+  insights: ResearchInsight[];
+};
+
+/** レポートの示唆 1 件。関係する船主がいれば、その船主の理解につながる */
+export type ResearchInsight = {
+  text: string;
+  /** 関係する船主の ID（customers.ts）。業界全般の示唆は空 */
+  customers: string[];
 };
 
 export const researchCategories: Record<
@@ -93,9 +100,18 @@ export const researchReports: ResearchReport[] = [
       },
     ],
     insights: [
-      "ハンディマックス帯のレトロフィット需要は2〜3年目に集中する見込み。早期の技術提案が有効。",
-      "内航セグメントは価格弾力性が低く、サポート体制を重視する傾向が強い。",
-      "コンテナ船は4年目以降に再加速の予測。今は深追いせず関係維持に留めるのが妥当。",
+      {
+        text: "ハンディマックス帯のレトロフィット需要は2〜3年目に集中する見込み。早期の技術提案が有効。",
+        customers: ["aegean"],
+      },
+      {
+        text: "内航セグメントは価格弾力性が低く、サポート体制を重視する傾向が強い。",
+        customers: ["setouchi"],
+      },
+      {
+        text: "コンテナ船は4年目以降に再加速の予測。今は深追いせず関係維持に留めるのが妥当。",
+        customers: ["pacific"],
+      },
     ],
   },
   {
@@ -115,9 +131,18 @@ export const researchReports: ResearchReport[] = [
       { label: "日本域内", value: 92, display: "92" },
     ],
     insights: [
-      "欧州船主は EU ETS 対応を理由に投資判断が速い。規制適合を軸にした提案が通りやすい。",
-      "中東の大型船主は長期サポート体制を重視。拠点設置の有無が選定条件になりやすい。",
-      "域内（日本）は伸びが鈍いが、既存顧客の追加発注による積み上げが期待できる。",
+      {
+        text: "欧州船主は EU ETS 対応を理由に投資判断が速い。規制適合を軸にした提案が通りやすい。",
+        customers: ["nordic", "aegean"],
+      },
+      {
+        text: "中東の大型船主は長期サポート体制を重視。拠点設置の有無が選定条件になりやすい。",
+        customers: ["gulf"],
+      },
+      {
+        text: "域内（日本）は伸びが鈍いが、既存顧客の追加発注による積み上げが期待できる。",
+        customers: ["setouchi"],
+      },
     ],
   },
   {
@@ -147,9 +172,18 @@ export const researchReports: ResearchReport[] = [
       },
     ],
     insights: [
-      "A社は主機補機パッケージで自社比15%安。ただし受注過多で納期遅延リスクを抱えている。",
-      "価格の単純比較を避け、燃費とメンテナンス費を含むライフサイクルコストで比較させる提案が有効。",
-      "自社の価格は中位。値引きよりも保証条件・納期確約での差別化が費用対効果が高い。",
+      {
+        text: "A社は主機補機パッケージで自社比15%安。ただし受注過多で納期遅延リスクを抱えている。",
+        customers: ["pacific"],
+      },
+      {
+        text: "価格の単純比較を避け、燃費とメンテナンス費を含むライフサイクルコストで比較させる提案が有効。",
+        customers: ["pacific"],
+      },
+      {
+        text: "自社の価格は中位。値引きよりも保証条件・納期確約での差別化が費用対効果が高い。",
+        customers: ["pacific"],
+      },
     ],
   },
   {
@@ -169,9 +203,18 @@ export const researchReports: ResearchReport[] = [
       { label: "自社", value: 18, display: "18%", own: true },
     ],
     insights: [
-      "自社シェアは18%。内航セグメントに限れば34%で首位のため、ここを足場に外航へ展開するのが定石。",
-      "A社のシェアはばら積み船に偏っており、タンカー・特殊船では相対的に手薄。",
-      "技術セミナー経由の商談は競合との比較検討に入る前に接点を持てるため、シェア逆転の起点になりやすい。",
+      {
+        text: "自社シェアは18%。内航セグメントに限れば34%で首位のため、ここを足場に外航へ展開するのが定石。",
+        customers: ["setouchi"],
+      },
+      {
+        text: "A社のシェアはばら積み船に偏っており、タンカー・特殊船では相対的に手薄。",
+        customers: ["nordic", "gulf"],
+      },
+      {
+        text: "技術セミナー経由の商談は競合との比較検討に入る前に接点を持てるため、シェア逆転の起点になりやすい。",
+        customers: [],
+      },
     ],
   },
   {
@@ -205,9 +248,18 @@ export const researchReports: ResearchReport[] = [
       },
     ],
     insights: [
-      "CII 基準の引き上げはほぼ確定。計測・モニタリング機器の需要は2年目から立ち上がる。",
-      "EU ETS 拡大は3年目に公示される確度が高い。欧州船主への先行提案が効く。",
-      "アンモニア燃料は確度が低く、今期の重点投資には向かない。動向監視に留めるのが妥当。",
+      {
+        text: "CII 基準の引き上げはほぼ確定。計測・モニタリング機器の需要は2年目から立ち上がる。",
+        customers: ["aegean", "pacific"],
+      },
+      {
+        text: "EU ETS 拡大は3年目に公示される確度が高い。欧州船主への先行提案が効く。",
+        customers: ["nordic"],
+      },
+      {
+        text: "アンモニア燃料は確度が低く、今期の重点投資には向かない。動向監視に留めるのが妥当。",
+        customers: [],
+      },
     ],
   },
   {
@@ -227,9 +279,18 @@ export const researchReports: ResearchReport[] = [
       { label: "EU（加盟国平均）", value: 18, display: "18%" },
     ],
     insights: [
-      "日本の制度は開発費にも適用可能。内航案件では実質負担を3割下げた見積を提示できる。",
-      "ノルウェー船主向けは申請代行までセットで提案すると、価格以外の評価点になる。",
-      "補助金の申請期限は各国とも年度単位。ターン後半の提案では間に合わない場合がある。",
+      {
+        text: "日本の制度は開発費にも適用可能。内航案件では実質負担を3割下げた見積を提示できる。",
+        customers: ["setouchi"],
+      },
+      {
+        text: "ノルウェー船主向けは申請代行までセットで提案すると、価格以外の評価点になる。",
+        customers: ["nordic"],
+      },
+      {
+        text: "補助金の申請期限は各国とも年度単位。ターン後半の提案では間に合わない場合がある。",
+        customers: [],
+      },
     ],
   },
   {
@@ -248,9 +309,18 @@ export const researchReports: ResearchReport[] = [
       { label: "船齢制限の導入", value: 25, display: "25%" },
     ],
     insights: [
-      "燃料規制の段階強化は議論が先行。メタノール対応機器への投資は4年目までに判断したい。",
-      "排出量取引の国際統合が進めば、モニタリング機器の需要は全地域に広がる。",
-      "船齢制限は反対が強く実現性は低い。解撤前提の提案は避けるべき。",
+      {
+        text: "燃料規制の段階強化は議論が先行。メタノール対応機器への投資は4年目までに判断したい。",
+        customers: ["nordic"],
+      },
+      {
+        text: "排出量取引の国際統合が進めば、モニタリング機器の需要は全地域に広がる。",
+        customers: ["gulf"],
+      },
+      {
+        text: "船齢制限は反対が強く実現性は低い。解撤前提の提案は避けるべき。",
+        customers: [],
+      },
     ],
   },
 ];
@@ -283,4 +353,39 @@ export function countUnpurchasedAvailable(
   return researchReports.filter(
     (r) => isAvailable(r, turn) && !owned.has(r.id),
   ).length;
+}
+
+/** レポートに関係する船主の ID（示唆から集計） */
+export function reportCustomerIds(report: ResearchReport): string[] {
+  return Array.from(new Set(report.insights.flatMap((i) => i.customers)));
+}
+
+/** その船主に関係するレポート */
+export function reportsForCustomer(customerId: string): ResearchReport[] {
+  return researchReports.filter((r) => reportCustomerIds(r).includes(customerId));
+}
+
+/** 購入済みのレポートから、その船主に関係する示唆を集める */
+export function insightsForCustomer(
+  purchases: ResearchPurchase[],
+  customerId: string,
+): { report: ResearchReport; text: string }[] {
+  const owned = new Set(purchases.map((p) => p.reportId));
+  return researchReports
+    .filter((r) => owned.has(r.id))
+    .flatMap((report) =>
+      report.insights
+        .filter((i) => i.customers.includes(customerId))
+        .map((i) => ({ report, text: i.text })),
+    );
+}
+
+/** 関係するレポートを 1 つ以上購入済みの船主の ID */
+export function researchedCustomerIds(purchases: ResearchPurchase[]): Set<string> {
+  const owned = new Set(purchases.map((p) => p.reportId));
+  return new Set(
+    researchReports
+      .filter((r) => owned.has(r.id))
+      .flatMap((r) => reportCustomerIds(r)),
+  );
 }

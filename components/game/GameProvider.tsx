@@ -23,6 +23,7 @@ import {
   advanceGameState,
   canEndTurn as canEndTurnFor,
   declareBankruptcy as declareBankruptcyFor,
+  declineRequest,
   finalizeGame,
   hasProposedThisTurn,
   isAnswered,
@@ -155,6 +156,8 @@ type GameContextValue = {
     requestId: string,
     focusPriority: string,
   ) => ProposalResolution | null;
+  /** 裏付けがないため、その船主要求への提案を今期は辞退する */
+  declineProposal: (requestId: string) => void;
   /** その船主要求への提案が完了済みか */
   isProposalCompleted: (requestId: string) => boolean;
   /** その船主要求の提案結果（未提案なら null） */
@@ -452,6 +455,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const declineProposal = useCallback((requestId: string) => {
+    if (advancingRef.current) return;
+    const current = stateRef.current;
+    const next = declineRequest(current, requestId);
+    if (next === current) return;
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   const modeConfig = getModeConfig(state.mode);
   const turnData = useMemo(
     () => getScenarioTurn(state.turn, state.mode),
@@ -505,6 +517,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       setPlayerName,
       completeProposal,
+      declineProposal,
       isProposalCompleted: (requestId: string) => isAnswered(state, requestId),
       dealOutcome: (requestId: string) => state.dealOutcomes[requestId] ?? null,
       hasProposalThisTurn,
@@ -543,6 +556,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       setPlayerName,
       completeProposal,
+      declineProposal,
       hasProposalThisTurn,
       unanswered,
       penalty,

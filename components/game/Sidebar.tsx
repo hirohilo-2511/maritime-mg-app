@@ -272,7 +272,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </p>
             <p className="mt-1">
               {unanswered.map((r) => r.owner).join("、")}
-              への回答を見送ると、信頼度 {unansweredPenalty} と各船主との関係性が悪化します。失注覚悟でも提案したほうが傷は浅く済みます。
+              への回答を見送ると、信頼度 {unansweredPenalty} と各船主との関係性が大きく悪化します。勝ち目がない要求は、提案画面で「今期は辞退する」を選ぶと傷を浅くできます。
             </p>
             <button
               type="button"

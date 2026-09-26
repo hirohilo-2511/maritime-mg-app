@@ -97,11 +97,11 @@ export const turns: TurnData[] = [
         region: "シンガポール",
         vesselType: "ばら積み船 82,000 DWT × 3隻",
         requirement:
-          "新造船向けの主機補機パッケージ。CII 格付 B 以上を達成できる燃費性能の提案を希望。",
+          "新造船向けの主機補機パッケージ。竣工日程に間に合う納期を最優先に、CII 格付 B 以上を達成できる燃費性能の提案を希望。",
         budget: 1_200_000,
         deadline: "1年目 Q2",
         status: "new",
-        priorities: ["燃費性能", "納期", "保証条件"],
+        priorities: ["納期", "燃費性能", "保証条件"],
       },
       {
         id: "req-1-2",
@@ -109,11 +109,11 @@ export const turns: TurnData[] = [
         region: "ノルウェー",
         vesselType: "プロダクトタンカー 50,000 DWT × 2隻",
         requirement:
-          "既存船のスクラバー換装と、EU ETS 対応の排出量モニタリング機器の導入検討。",
+          "既存船のスクラバー換装と、EU ETS 対応の排出量モニタリング機器の導入検討。補助金を活用して初期投資を抑えたい。",
         budget: 780_000,
         deadline: "1年目 Q3",
         status: "in_review",
-        priorities: ["規制適合", "初期投資額"],
+        priorities: ["初期投資額", "規制適合"],
       },
       {
         id: "req-1-3",

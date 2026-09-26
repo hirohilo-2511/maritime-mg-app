@@ -5,9 +5,12 @@ import { RelationshipMeter } from "@/components/game/RelationshipMeter";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { PriorityBadges } from "@/components/game/PriorityBadges";
 import { ProposalAction } from "@/components/game/ProposalAction";
+import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
 import { getChannel } from "@/lib/marketing";
+import { insightsForCustomer, reportsForCustomer } from "@/lib/research";
 import {
   fitAxes,
   shortfallAxes,
@@ -16,11 +19,13 @@ import {
   type DealStatus,
   type FitScores,
 } from "@/lib/customers";
+import { axisChannel } from "@/lib/synergy";
 import type { ShipownerRequest } from "@/lib/types";
 
 const dealStatus: Record<DealStatus, { label: string; tone: BadgeTone }> = {
   won: { label: "受注", tone: "positive" },
   lost: { label: "失注", tone: "negative" },
+  declined: { label: "辞退", tone: "warning" },
   ignored: { label: "未回答", tone: "neutral" },
   pending: { label: "対応待ち", tone: "warning" },
 };
@@ -44,6 +49,10 @@ export function CustomerDetail({
   activeRequest?: ShipownerRequest;
 }) {
   const { money } = useMoney();
+  const { state, modeConfig } = useGame();
+  // 導入編：購入した市場調査のうち、この船主に関係する示唆
+  const researchInsights = insightsForCustomer(state.researchPurchases, customer.id);
+  const relatedReports = reportsForCustomer(customer.id);
 
   const shortfalls = shortfallAxes(customer.expectations, capability);
   const wonTotal = deals
@@ -159,11 +168,69 @@ export function CustomerDetail({
               {shortfalls
                 .map((id) => fitAxes.find((a) => a.id === id)?.label)
                 .join("・")}
-              で期待を下回っています。他軸の強みで補うか、この軸への投資を検討してください。
+              で期待を下回っています。この軸を訴求するなら、その裏付けになる施策（
+              {shortfalls
+                .map((id) => getChannel(axisChannel[id]).name)
+                .join("・")}
+              ）へ重点的に配分しましょう。難しければ、期待を上回っている軸で勝負する手もあります。
             </p>
           ) : null}
         </CardBody>
       </Card>
+
+      {/* 導入編：市場調査で分かったこと（調査するとプロファイルが充実する） */}
+      {modeConfig.researchInsightsInProfile ? (
+        <Card>
+          <CardHeader
+            title="市場調査からの示唆"
+            description="購入したレポートのうち、この船主に関係する内容"
+            icon={<Icon name="research" className="h-5 w-5" />}
+            action={
+              <Badge tone={researchInsights.length > 0 ? "positive" : "neutral"}>
+                {researchInsights.length}件
+              </Badge>
+            }
+          />
+          <CardBody>
+            {researchInsights.length > 0 ? (
+              <ul className="space-y-2">
+                {researchInsights.map(({ report, text }) => (
+                  <li
+                    key={text}
+                    className="flex items-start gap-2.5 text-[13px] leading-relaxed text-navy-700"
+                  >
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sea-500" />
+                    <span>
+                      {text}
+                      <span className="block text-[11px] text-navy-400">
+                        出典：{report.title}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {relatedReports.some(
+              (r) => !state.researchPurchases.some((p) => p.reportId === r.id),
+            ) ? (
+              <p
+                className={`rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-navy-600 ${
+                  researchInsights.length > 0 ? "mt-3" : ""
+                }`}
+              >
+                市場調査の
+                {relatedReports
+                  .filter(
+                    (r) => !state.researchPurchases.some((p) => p.reportId === r.id),
+                  )
+                  .map((r) => `「${r.title}」`)
+                  .join("")}
+                を購入すると、この船主について分かることが増えます。
+              </p>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {/* 今ターンの引き合い */}
       {activeRequest ? (
@@ -185,9 +252,10 @@ export function CustomerDetail({
                 {money(activeRequest.budget)}
               </span>
               <span className="text-[11px] text-navy-400">想定予算 ·</span>
-              {activeRequest.priorities.map((p) => (
-                <Badge key={p}>{p}</Badge>
-              ))}
+              <PriorityBadges
+                owner={activeRequest.owner}
+                priorities={activeRequest.priorities}
+              />
             </div>
             <div className="mt-3 flex justify-end">
               <ProposalAction request={activeRequest} />
@@ -232,13 +300,17 @@ export function CustomerDetail({
                     {p ? (
                       <p className="mt-0.5 text-[11px] leading-relaxed text-navy-400">
                         訴求「{p.focusPriority}」（第{p.priorityRank + 1}優先）·
-                        裏付け: {getChannel(p.requiredChannel).name} 配分比{" "}
+                        裏付け: {getChannel(p.requiredChannel).name} 全体の{" "}
                         {Math.round(p.channelShare * 100)}%
                         {p.won
                           ? p.priorityRank > 0
                             ? ` · 受注額は想定の${Math.round((p.revenue / p.requestBudget) * 100)}%`
                             : ""
                           : ` · あと ${money(p.shortfall)} で受注できた`}
+                      </p>
+                    ) : deal.status === "declined" ? (
+                      <p className="mt-0.5 text-[11px] text-amber-600">
+                        裏付けが足りないため、今期の提案を辞退しました。
                       </p>
                     ) : deal.status === "ignored" ? (
                       <p className="mt-0.5 text-[11px] text-rose-500">

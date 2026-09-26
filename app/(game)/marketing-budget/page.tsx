@@ -17,7 +17,7 @@ import {
   marketingChannels,
   simulateMarketing,
 } from "@/lib/marketing";
-import { channelShare, qualifyingChannels } from "@/lib/synergy";
+import { backingStatus, channelShare } from "@/lib/synergy";
 import type { MarketingChannelId } from "@/lib/types";
 
 /** 「均等配分」プリセットで使う、利用可能資金に対する比率 */
@@ -40,14 +40,24 @@ export default function MarketingBudgetPage() {
 
   const plan = state.marketingPlan;
   const outcome = useMemo(() => simulateMarketing(plan), [plan]);
-  const qualifying = useMemo(
-    () =>
-      qualifyingChannels(plan, {
-        minShare: modeConfig.minSynergyShare,
-        minSpend: modeConfig.minSynergySpend,
-      }),
-    [plan, modeConfig],
-  );
+  const statuses = useMemo(() => {
+    const rule = {
+      minShare: modeConfig.minSynergyShare,
+      minSpend: modeConfig.minSynergySpend,
+    };
+    return Object.fromEntries(
+      marketingChannels.map((c) => [c.id, backingStatus(plan, c.id, rule)]),
+    ) as Record<MarketingChannelId, ReturnType<typeof backingStatus>>;
+  }, [plan, modeConfig]);
+  // 訴求ラインに届いている施策がひとつもない（このままではどの提案も受注できない）
+  const noBacking = !marketingChannels.some((c) => statuses[c.id].qualifies);
+  const ruleText = `配分全体の4分の1（${Math.round(
+    modeConfig.minSynergyShare * 100,
+  )}%）以上${
+    modeConfig.minSynergySpend > 0
+      ? `かつ ${money(modeConfig.minSynergySpend)} 以上`
+      : ""
+  }`;
 
   const budget = Math.max(0, state.availableFunds);
   const remaining = state.availableFunds - outcome.spend;
@@ -185,13 +195,7 @@ export default function MarketingBudgetPage() {
           <Card>
             <CardHeader
               title="チャネル別の配分"
-              description={`投資額は ${money(BUDGET_STEP)} 刻み。配分の${Math.round(
-                modeConfig.minSynergyShare * 100,
-              )}%以上${
-                modeConfig.minSynergySpend > 0
-                  ? `かつ ${money(modeConfig.minSynergySpend)} 以上`
-                  : ""
-              }を投じたチャネルが、提案の裏付け（訴求ライン）になります`}
+              description={`投資額は ${money(BUDGET_STEP)} 刻み。${ruleText}を投じた施策が、提案の裏付け（訴求ライン）になります。どの要求の裏付けになるかは、各施策の水色のタグを参考にしてください`}
               icon={<Icon name="megaphone" className="h-5 w-5" />}
               action={
                 <div className="flex gap-2">
@@ -225,7 +229,8 @@ export default function MarketingBudgetPage() {
                   amount={plan[channel.id]}
                   effect={outcome.byChannel[channel.id]}
                   share={channelShare(plan, channel.id)}
-                  qualifies={qualifying.includes(channel.id)}
+                  status={statuses[channel.id]}
+                  minSpend={modeConfig.minSynergySpend}
                   disabled={isPlanLocked}
                   onChange={(amount) => setAmount(channel.id, amount)}
                 />
@@ -315,6 +320,19 @@ export default function MarketingBudgetPage() {
 
             {/* 確定 */}
             <div className="border-t border-navy-100 px-5 py-4">
+              {/* 確定前に、どの提案も受注できない配分であることを知らせる（初見での失注確定を防ぐ） */}
+              {noBacking && !state.marketingCommitted && !isPlanLocked ? (
+                <p className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-[12px] leading-relaxed text-amber-800">
+                  <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    {outcome.spend === 0
+                      ? "投資を見送ると、今年の提案はすべて受注できません。"
+                      : "この配分では、どの提案も受注条件を満たせません。"}
+                    少なくとも1つの施策に、{ruleText}の投資が必要です。
+                    勝ち目のない要求は、提案画面で「辞退」を選べます。
+                  </span>
+                </p>
+              ) : null}
               <Button
                 size="lg"
                 className="w-full"
@@ -355,9 +373,7 @@ export default function MarketingBudgetPage() {
                       : hasProposalThisTurn
                         ? "ターン終了時に実行されます。提案済みのため配分は変更できません。"
                         : "ターン終了時に実行されます。スライダーを動かすと未確定に戻ります。"
-                    : outcome.spend === 0
-                      ? "投資なしで確定すると、今ターンの提案はすべて失注します（投資チャネルがないため）。"
-                      : "配分を確定すると、提案の作成とターン終了ができるようになります。"}
+                    : "配分を確定すると、提案の作成とターン終了ができるようになります。"}
               </p>
             </div>
           </Card>

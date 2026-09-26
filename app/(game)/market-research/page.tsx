@@ -21,8 +21,14 @@ const categoryOrder: ResearchCategory[] = [
 ];
 
 export default function MarketResearchPage() {
-  const { state, purchaseResearchReport, hasReport, spendable, isLocked } =
-    useGame();
+  const {
+    state,
+    modeConfig,
+    purchaseResearchReport,
+    hasReport,
+    spendable,
+    isLocked,
+  } = useGame();
   const committedSpend = state.availableFunds - spendable;
   const { money } = useMoney();
 
@@ -100,7 +106,9 @@ export default function MarketResearchPage() {
           </div>
 
           <p className="mt-3 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-navy-500">
-            調査結果はスコアに直接影響しません。マーケティング予算の配分先や、船主への提案方針を決めるための判断材料として使用します。
+            {modeConfig.hidePriorityOrderUntilResearched
+              ? `${modeConfig.label}では、船主の重視順（第1優先）は関係するレポートを買うまで分かりません。買うとその船主の重視順がずっと見えるようになり、その船主から受注すると信頼度が +${modeConfig.researchWinTrustBonus} 上乗せされます。`
+              : "レポートを買うと、関係する船主の顧客プロファイルに「市場調査からの示唆」が追加されます。マーケティング予算の配分先や、船主への提案方針を決める判断材料にしてください（スコアには直接影響しません）。"}
           </p>
         </CardBody>
       </Card>

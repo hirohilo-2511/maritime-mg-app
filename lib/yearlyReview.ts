@@ -100,6 +100,13 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       const p = proposals.find((x) => x.requestId === req.id);
       const primary = req.priorities[0];
 
+      if (!p && state.dealOutcomes[req.id] === "declined") {
+        const channelName = getChannel(channelForPriority(primary)).name;
+        bads.push(
+          `${req.owner}（想定予算 ${usd(req.budget)}）は、裏付けとなる投資がなく提案を辞退しました。無理な提案で信用を落とすことは避けられましたが、第1優先「${primary}」の裏付けになる${channelName}へ配分していれば受注を狙えました。`,
+        );
+        continue;
+      }
       if (!p) {
         bads.push(
           `${req.owner}（想定予算 ${usd(req.budget)}）の要求に回答しませんでした。案件をまるごと逃したうえ、信頼度と関係性も低下しています。`,
@@ -110,7 +117,7 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       const channelName = getChannel(p.requiredChannel).name;
       if (p.won && p.priorityRank === 0) {
         goods.push(
-          `${req.owner}：第1優先「${p.focusPriority}」に${channelName}（配分比${pct(
+          `${req.owner}：第1優先「${p.focusPriority}」に${channelName}（配分全体の${pct(
             p.channelShare,
           )}）で応え、満額${usd(p.revenue)}を受注しました。`,
         );
@@ -127,9 +134,9 @@ export function buildYearlyReview(state: GameState): YearReview[] {
             ? `${channelName}への投資${usd(p.channelSpend)}が最低条件${usd(
                 synergyRuleFor(state.mode).minSpend,
               )}に届かず`
-            : `${channelName}の配分比が${pct(p.channelShare)}で条件の${pct(
+            : `${channelName}が配分全体の${pct(p.channelShare)}で、条件の4分の1（${pct(
                 synergyRuleFor(state.mode).minShare,
-              )}に届かず`;
+              )}）に届かず`;
         bads.push(
           `${req.owner}：「${p.focusPriority}」で提案したものの、${why}失注しました（あと${usd(
             p.shortfall,

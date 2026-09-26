@@ -117,8 +117,12 @@ export type PendingInsolvency = {
 /** 資金不足になった年に、どう対応したか */
 export type InsolvencyResolution = "loan" | "declined" | "denied";
 
-/** 提案の結果。重視ポイントと投資チャネルの相性で決まる */
-export type DealOutcome = "won" | "lost";
+/**
+ * 船主要求への回答結果。
+ * won / lost は提案した結果（重視ポイントと投資チャネルの相性で決まる）、
+ * declined は裏付けがないため今期は提案を辞退したことを表す。
+ */
+export type DealOutcome = "won" | "lost" | "declined";
 
 /** 1 年分（1 ターン）の締めの記録 */
 export type TurnRecord = {
@@ -140,6 +144,8 @@ export type TurnRecord = {
   researchSpend: number;
   /** 回答しなかった船主要求 */
   unansweredRequestIds: string[];
+  /** 辞退した船主要求 */
+  declinedRequestIds: string[];
   unansweredPenalty: number;
   /** この年に支払った緊急融資の利息 */
   interestExpense: number;

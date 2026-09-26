@@ -209,7 +209,9 @@ function buildBankruptcyReason(state: GameState): string {
     (sum, p) => sum + p.cost,
     0,
   );
-  const outcomes = Object.values(state.dealOutcomes);
+  const outcomes = Object.values(state.dealOutcomes).filter(
+    (o) => o !== "declined",
+  );
   const won = outcomes.filter((o) => o === "won").length;
   const last = state.turnLog.at(-1);
   const funds = `${usd(state.availableFunds)}（初期資金 ${usd(cfg.initialFunds)}）`;
@@ -429,7 +431,11 @@ function buildIfStory(state: GameState): string {
     const plan = state.marketingHistory.find((h) => h.turn === turn)?.plan;
     for (const req of getScenarioTurn(turn, state.mode).requests) {
       const p = state.proposalLog.find((x) => x.requestId === req.id);
-      const answeredInTime = p || turn < state.turn || state.gameCompleted;
+      const answeredInTime =
+        p ||
+        req.id in state.dealOutcomes ||
+        turn < state.turn ||
+        state.gameCompleted;
       if (!answeredInTime) continue;
       const loss = req.budget - (p?.revenue ?? 0);
       if (loss <= 0) continue;
@@ -443,7 +449,9 @@ function buildIfStory(state: GameState): string {
           ? `${getChannel(channel).name}への配分をあと${usd(needed)}増やし`
           : `${getChannel(channel).name}への配分を活かして`;
       const detail = !p
-        ? "要求に回答しないまま年を越してしまいました"
+        ? state.dealOutcomes[req.id] === "declined"
+          ? "裏付けが足りず、提案を辞退しました"
+          : "要求に回答しないまま年を越してしまいました"
         : p.won
           ? `第${p.priorityRank + 1}優先「${p.focusPriority}」での受注に留まりました`
           : `「${p.focusPriority}」での提案は裏付けが足りず失注しました`;

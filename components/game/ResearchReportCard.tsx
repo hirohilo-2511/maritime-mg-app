@@ -3,8 +3,42 @@
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
-import type { ResearchReport } from "@/lib/research";
+import { customers } from "@/lib/customers";
+import { reportCustomerIds, type ResearchReport } from "@/lib/research";
+
+/** 船主の短い呼び名（例：「Setouchi Kisen 株式会社」→「Setouchi」） */
+function shortName(customerId: string): string {
+  return customers.find((c) => c.id === customerId)?.name.split(" ")[0] ?? customerId;
+}
+
+/** このレポートで何が分かるか（難易度によって、プロファイルの示唆か、重視順か） */
+function ResearchBenefit({ report }: { report: ResearchReport }) {
+  const { modeConfig } = useGame();
+  const names = reportCustomerIds(report).map(shortName);
+  if (names.length === 0) return null;
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-navy-600">
+      <Icon name="customers" className="h-3.5 w-3.5 text-sea-600" />
+      <span className="font-semibold">
+        {modeConfig.hidePriorityOrderUntilResearched
+          ? "重視順が分かる船主："
+          : "顧客プロファイルに示唆が届く船主："}
+      </span>
+      {names.map((n) => (
+        <Badge key={n} tone="info">
+          {n}
+        </Badge>
+      ))}
+      {modeConfig.researchWinTrustBonus > 0 ? (
+        <span className="text-navy-400">
+          （この船主から受注すると信頼度 +{modeConfig.researchWinTrustBonus}）
+        </span>
+      ) : null}
+    </p>
+  );
+}
 
 /** 購入後に表示する定量データのバー */
 function DataBars({ report }: { report: ResearchReport }) {
@@ -97,6 +131,7 @@ export function ResearchReportCard({
             )}
           </div>
           <p className="mt-0.5 text-[11px] text-navy-400">{report.provider}</p>
+          <ResearchBenefit report={report} />
         </div>
         {!purchased ? (
           <p className="tabular shrink-0 text-right text-base leading-none font-bold text-navy-900">
@@ -114,11 +149,18 @@ export function ResearchReportCard({
           <ul className="mt-2 space-y-2">
             {report.insights.map((insight) => (
               <li
-                key={insight}
+                key={insight.text}
                 className="flex items-start gap-2.5 text-[13px] leading-relaxed text-navy-600"
               >
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sea-500" />
-                {insight}
+                <span>
+                  {insight.text}
+                  {insight.customers.length > 0 ? (
+                    <span className="ml-1.5 text-[11px] font-semibold text-sea-600">
+                      → {insight.customers.map(shortName).join("・")}
+                    </span>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>

@@ -4,7 +4,9 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { PriorityBadges } from "@/components/game/PriorityBadges";
 import { ProposalAction } from "@/components/game/ProposalAction";
+import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
 import type { RequestStatus, ShipownerRequest } from "@/lib/types";
 
@@ -20,12 +22,15 @@ export function ShipownerRequestsCard({
   requests: ShipownerRequest[];
 }) {
   const { moneyCompact } = useMoney();
+  const { isProposalCompleted } = useGame();
+  // 提案・辞退を済ませた要求は対応待ちに数えない
+  const pending = requests.filter((r) => !isProposalCompleted(r.id)).length;
 
   return (
     <Card>
       <CardHeader
         title="現在の船主の要求"
-        description={`対応待ち ${requests.length} 件`}
+        description={`対応待ち ${pending} 件 / 全 ${requests.length} 件`}
         icon={<Icon name="anchor" className="h-5 w-5" />}
         action={
           <Button variant="ghost" size="sm">
@@ -90,9 +95,7 @@ export function ShipownerRequestsCard({
                   <span className="text-[11px] font-semibold whitespace-nowrap text-navy-400">
                     重視される要素:
                   </span>
-                  {req.priorities.map((p) => (
-                    <Badge key={p}>{p}</Badge>
-                  ))}
+                  <PriorityBadges owner={req.owner} priorities={req.priorities} />
                 </div>
                 <div className="ml-auto">
                   <ProposalAction request={req} />

@@ -1,3 +1,4 @@
+import { isCustomerResearched } from "./customers";
 import {
   annualInterest,
   buildInsolvency,
@@ -26,6 +27,7 @@ export function clampTrust(value: number): number {
 /** 船主との関係性の変動量（顧客データの初期値に加算する） */
 export const RELATIONSHIP_WIN_DELTA = 8;
 export const RELATIONSHIP_LOSE_DELTA = -4;
+export const RELATIONSHIP_DECLINE_DELTA = -4;
 export const RELATIONSHIP_IGNORE_DELTA = -12;
 
 function addRelationship(
@@ -184,6 +186,9 @@ function turnRecord(
     marketingTrust: closing.marketing.trustDelta,
     researchSpend: closing.researchSpend,
     unansweredRequestIds: closing.unanswered.map((r) => r.id),
+    declinedRequestIds: getScenarioTurn(state.turn, state.mode)
+      .requests.filter((r) => state.dealOutcomes[r.id] === "declined")
+      .map((r) => r.id),
     unansweredPenalty: closing.penalty,
     interestExpense: finance.interestExpense,
     repayment: finance.repayment,
@@ -473,6 +478,34 @@ export function finalizeGame(state: GameState): FinalizeResult {
   };
 }
 
+/**
+ * 船主要求への提案を、今期は辞退する純粋関数。
+ * 受注額はゼロ・信頼度と関係性は少し下がるが、未回答（無視）や裏付けのない提案（失注）より傷は浅い。
+ * 提案と同じく予算配分の確定が前提。ゲーム終了後・判断待ち・回答済みの要求では状態を変更しない。
+ * 配分の組み替えを妨げないよう、提案済み（proposalsCompleted）には含めない。
+ */
+export function declineRequest(state: GameState, requestId: string): GameState {
+  if (isPlayLocked(state) || !state.marketingCommitted) return state;
+  if (isAnswered(state, requestId)) return state;
+  const request = getScenarioTurn(state.turn, state.mode).requests.find(
+    (r) => r.id === requestId,
+  );
+  if (!request) return state;
+
+  return {
+    ...state,
+    dealOutcomes: { ...state.dealOutcomes, [requestId]: "declined" },
+    trustScore: clampTrust(
+      state.trustScore + getModeConfig(state.mode).declineTrustDelta,
+    ),
+    relationshipDeltas: addRelationship(
+      state.relationshipDeltas,
+      request.owner,
+      RELATIONSHIP_DECLINE_DELTA,
+    ),
+  };
+}
+
 export type ProposalResolution = {
   /** 提案・シナジー判定後の状態 */
   state: GameState;
@@ -482,8 +515,10 @@ export type ProposalResolution = {
   synergy: SynergyResult;
   /** 受注による入金額（失注時は 0） */
   revenue: number;
-  /** 信頼度スコアの変動（難易度によって異なる） */
+  /** 信頼度スコアの変動（難易度によって異なる。市場調査の上乗せ込み） */
   trustDelta: number;
+  /** 市場調査で船主を理解していたことによる信頼度の上乗せ（受注時のみ） */
+  researchBonus: number;
 };
 
 /**
@@ -512,8 +547,13 @@ export function resolveProposal(
   );
   const outcome: DealOutcome = synergy.won ? "won" : "lost";
   // 受注額と信頼度の上昇は、船主の重視順位に応じて目減りする
+  // 関係する市場調査を購入済みの船主から受注すると、顧客理解が伝わり信頼度が上乗せされる
+  const researchBonus =
+    synergy.won && isCustomerResearched(state, request.owner)
+      ? cfg.researchWinTrustBonus
+      : 0;
   const trustDelta = synergy.won
-    ? Math.round(cfg.winTrustDelta * synergy.rewardRate)
+    ? Math.round(cfg.winTrustDelta * synergy.rewardRate) + researchBonus
     : cfg.loseTrustDelta;
   const revenue = synergy.won
     ? Math.round(request.budget * synergy.rewardRate)
@@ -555,5 +595,6 @@ export function resolveProposal(
     synergy,
     revenue,
     trustDelta,
+    researchBonus,
   };
 }
