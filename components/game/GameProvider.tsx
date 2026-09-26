@@ -21,11 +21,11 @@ import {
 import {
   acceptEmergencyLoan as acceptLoanFor,
   advanceGameState,
+  canEditPlan,
   canEndTurn as canEndTurnFor,
   declareBankruptcy as declareBankruptcyFor,
   declineRequest,
   finalizeGame,
-  hasProposedThisTurn,
   isAnswered,
   isPlayLocked,
   purchaseResearch,
@@ -126,13 +126,13 @@ type GameContextValue = {
   removeTeam: (index: number) => void;
   /** 決算を行わずにターンだけ移動する（ファシリテーター・デモ用） */
   jumpToTurn: (turn: number) => void;
-  /** マーケティング予算の配分を更新する（確定状態は解除される） */
+  /** マーケティング予算の配分を更新する（確定後は変更できない） */
   updateMarketingPlan: (plan: MarketingPlan) => void;
   /** 現在の配分を確定する（ターン終了時に実行される） */
   commitMarketingPlan: () => void;
   /** 今ターンは投資を見送る（配分 $0 で確定する） */
   skipMarketing: () => void;
-  /** 配分を変更できない状態か（今ターン提案済み・決算処理中・終了後） */
+  /** 配分を変更できない状態か（今年は確定済み・決算処理中・終了後・緊急経営判断の待機中） */
   isPlanLocked: boolean;
   /** 市場調査レポートを購入する（費用は即時に資金から差し引かれる） */
   purchaseResearchReport: (reportId: string, cost: number) => void;
@@ -383,27 +383,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [stopAdvancing],
   );
 
+  // 配分は確定するまで自由に変えられるが、確定したらその年は変更できない
   const updateMarketingPlan = useCallback(
     (plan: MarketingPlan) => {
       updatePlayState((prev) =>
-        // 提案後に配分を組み替えると、判定に使った配分と実際の支出が食い違うため変更不可
-        hasProposedThisTurn(prev)
-          ? prev
-          : { ...prev, marketingPlan: plan, marketingCommitted: false },
+        canEditPlan(prev) ? { ...prev, marketingPlan: plan } : prev,
       );
     },
     [updatePlayState],
   );
 
   const commitMarketingPlan = useCallback(() => {
-    updatePlayState((prev) => ({ ...prev, marketingCommitted: true }));
+    updatePlayState((prev) =>
+      canEditPlan(prev) ? { ...prev, marketingCommitted: true } : prev,
+    );
   }, [updatePlayState]);
 
   const skipMarketing = useCallback(() => {
     updatePlayState((prev) =>
-      hasProposedThisTurn(prev)
-        ? prev
-        : { ...prev, marketingPlan: emptyPlan(), marketingCommitted: true },
+      canEditPlan(prev)
+        ? { ...prev, marketingPlan: emptyPlan(), marketingCommitted: true }
+        : prev,
     );
   }, [updatePlayState]);
 
@@ -482,7 +482,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const penalty = unansweredPenalty(state);
   const canCreateProposal = state.marketingCommitted && !isLocked;
   const canEndTurn = canEndTurnFor(state) && !isAdvancing;
-  const isPlanLocked = isLocked || hasProposedThisTurn(state);
+  const isPlanLocked = isAdvancing || !canEditPlan(state);
   const spendable = spendableFunds(state);
   const debt = outstandingDebt(state);
   const nextInterest = annualInterest(state);

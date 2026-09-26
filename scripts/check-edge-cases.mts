@@ -5,6 +5,7 @@
 import {
   acceptEmergencyLoan,
   advanceGameState,
+  canEditPlan,
   canEndTurn,
   declareBankruptcy,
   declineRequest,
@@ -581,7 +582,6 @@ section("訴求ラインの表示（予算画面）");
   check("実践編：$100k 未満は理由を示す", !adv.qualifies && adv.reason === "underinvested" && adv.needed === 20_000, JSON.stringify(adv));
   check("未配分", backingStatus(emptyPlan(), "digital", intro).reason === "none");
   check("意思決定者メモは導入編のみ", getModeConfig("intro").showDecisionMakerNote && !getModeConfig("advanced").showDecisionMakerNote);
-  check("均等配分ボタンは導入編のみ", getModeConfig("intro").showEvenSplitPreset && !getModeConfig("advanced").showEvenSplitPreset);
   check("要求文に重視順を明かす言い回しがない", [1, 2, 3, 4, 5].every((t) => getScenarioTurn(t, "intro").requests.every((r) => !/最優先|重視|条件|評価/.test(r.requirement))));
   check("提案画面の裏付け表示は導入編のみ", getModeConfig("intro").showProposalBacking && !getModeConfig("advanced").showProposalBacking);
   check("施策ごとの裏付けヒント", prioritiesForChannel("fieldSales").includes("サポート体制") && prioritiesForChannel("expo").includes("価格"));
@@ -721,6 +721,18 @@ section("市場調査の有効期限と更新版（実践編）");
   check("買えるレポート数に期限切れを含む", countBuyableReports(y3) > countBuyableReports(bought));
   const intro = purchaseResearch(createInitialGameState("intro"), report.id, report.cost);
   check("導入編は期限なし", hasActiveReport({ ...intro, turn: 5 }, report.id) && researchValidUntil(intro, report.id) === null);
+}
+
+// ---------------------------------------------------------------------------
+section("予算は確定したらその年は変更できない");
+{
+  const s0 = createInitialGameState("advanced");
+  check("確定前は変更できる", canEditPlan(s0));
+  const committed = commit(s0, plan({ seminar: 100_000 }));
+  check("確定後は変更できない", !canEditPlan(committed));
+  const r = advanceGameState(committed);
+  check("翌年はまた変更できる", r.state.turn === 2 && canEditPlan(r.state));
+  check("終了後は変更できない", !canEditPlan({ ...s0, gameCompleted: true }));
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

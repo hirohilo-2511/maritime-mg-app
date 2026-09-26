@@ -74,7 +74,16 @@ export function spendableFunds(state: GameState): number {
   return state.availableFunds - committed;
 }
 
-/** 今ターン、船主への提案を 1 件以上行ったか（行った後は配分を変更できない） */
+/**
+ * 今年のマーケティング予算の配分を変更できるか。
+ * 一度確定したら、その年は変更できない（確定した方針で1年を戦う）。
+ * 終了後・緊急経営判断の待機中も変更できない。
+ */
+export function canEditPlan(state: GameState): boolean {
+  return !isPlayLocked(state) && !state.marketingCommitted;
+}
+
+/** 今ターン、船主への提案を 1 件以上行ったか */
 export function hasProposedThisTurn(state: GameState): boolean {
   return state.proposalsCompleted.length > 0;
 }

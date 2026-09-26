@@ -13,16 +13,12 @@ import {
   BUDGET_STEP,
   MAX_TRUST_GAIN_PER_TURN,
   emptyPlan,
-  evenSplit,
   marketingChannels,
   simulateMarketing,
 } from "@/lib/marketing";
 import { extraRequestCount } from "@/lib/extraRequests";
 import { backingStatus, channelShare } from "@/lib/synergy";
 import type { MarketingChannelId } from "@/lib/types";
-
-/** 「均等配分」プリセットで使う、利用可能資金に対する比率 */
-const PRESET_RATIO = 0.3;
 
 export default function MarketingBudgetPage() {
   const {
@@ -204,19 +200,6 @@ export default function MarketingBudgetPage() {
               icon={<Icon name="megaphone" className="h-5 w-5" />}
               action={
                 <div className="flex gap-2">
-                  {modeConfig.showEvenSplitPreset ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={isPlanLocked}
-                      onClick={() =>
-                        updateMarketingPlan(evenSplit(budget * PRESET_RATIO))
-                      }
-                      title={`資金の${PRESET_RATIO * 100}%を全チャネルへ均等配分します`}
-                    >
-                      均等配分
-                    </Button>
-                  ) : null}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -394,12 +377,16 @@ export default function MarketingBudgetPage() {
                   ? "ゲームは終了しています。"
                   : state.marketingCommitted
                     ? isFinalTurn
-                      ? "最終ターンの投資もターン終了時に資金から差し引かれ、最終評価に反映されます。"
-                      : hasProposalThisTurn
-                        ? "ターン終了時に実行されます。提案済みのため配分は変更できません。"
-                        : "ターン終了時に実行されます。スライダーを動かすと未確定に戻ります。"
-                    : "配分を確定すると、提案の作成とターン終了ができるようになります。"}
+                      ? "確定済みです。この年の配分は変更できません。最終ターンの投資もターン終了時に資金から差し引かれ、最終評価に反映されます。"
+                      : "確定済みです。この年の配分は変更できません（ターン終了時に実行されます）。"
+                    : "確定すると、提案の作成とターン終了ができるようになります。"}
               </p>
+              {!state.marketingCommitted && !isPlanLocked ? (
+                <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-relaxed text-amber-700">
+                  <Icon name="alert" className="mt-0.5 h-3 w-3 shrink-0" />
+                  一度確定すると、この年の配分は変更できません。
+                </p>
+              ) : null}
             </div>
           </Card>
         </div>
