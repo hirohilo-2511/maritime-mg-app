@@ -146,6 +146,8 @@ export type TurnRecord = {
   unansweredRequestIds: string[];
   /** 辞退した船主要求 */
   declinedRequestIds: string[];
+  /** この年に届いた追加案件（前年の見込み引き合いによる） */
+  extraRequestIds: string[];
   unansweredPenalty: number;
   /** この年に支払った緊急融資の利息 */
   interestExpense: number;
@@ -187,6 +189,8 @@ export type ProposalRecord = {
   trustDelta: number;
   /** 受注に追加で必要だった投資額（受注時は 0） */
   shortfall: number;
+  /** 追加案件への提案か */
+  extra?: boolean;
 };
 
 /** 市場調査レポートの購入記録 */
@@ -280,6 +284,11 @@ export type ShipownerRequest = {
   status: RequestStatus;
   /** この案件が自社に求める優先要素 */
   priorities: string[];
+  /**
+   * 前年の見込み引き合いから生まれた追加案件か（実践編）。
+   * 回答しなくてもペナルティはなく（期限切れ）、第1優先的中率の計算にも含めない。
+   */
+  extra?: boolean;
 };
 
 /** ターン終了時に確定する決算結果 */

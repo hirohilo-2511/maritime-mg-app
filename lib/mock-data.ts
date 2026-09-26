@@ -1,5 +1,5 @@
 import { emptyPlan } from "./marketing";
-import type { GameState, TurnData } from "./types";
+import type { GameState, ShipownerRequest, TurnData } from "./types";
 
 /**
  * プロトタイプ用のダミーデータ。
@@ -427,3 +427,116 @@ export const turns: TurnData[] = [
 export function getTurnData(turn: number): TurnData {
   return turns.find((t) => t.turn === turn) ?? turns[turns.length - 1];
 }
+
+/**
+ * 実践編の追加案件（前年の見込み引き合い件数に応じて届く）。
+ * 前年の引き合いが 1 つ目の基準に届くと先頭の 1 件、2 つ目の基準にも届くと 2 件とも届く。
+ * 想定予算は導入編の単位で、難易度の補正（実践編 ×0.7）がかかる。
+ * 同じ年の本案件とは別の船主にしている（顧客プロファイルで 1 船主 1 件に保つため）。
+ */
+export const extraRequests: Record<number, ShipownerRequest[]> = {
+  2: [
+    {
+      id: "x2-nordic",
+      owner: "Nordic Tanker AS",
+      region: "ノルウェー",
+      vesselType: "プロダクトタンカー × 2隻",
+      requirement: "既存タンカーへの燃料流量計の追加設置。次の入渠に間に合わせたい。",
+      budget: 300_000,
+      deadline: "2年目 Q3",
+      status: "new",
+      priorities: ["納期", "価格"],
+      extra: true,
+    },
+    {
+      id: "x2-gulf",
+      owner: "Gulf Energy Shipping",
+      region: "UAE / ドバイ",
+      vesselType: "VLCC × 1隻",
+      requirement: "中東拠点での予備品パッケージの試験導入。",
+      budget: 250_000,
+      deadline: "2年目 Q4",
+      status: "new",
+      priorities: ["サポート体制", "実績"],
+      extra: true,
+    },
+  ],
+  3: [
+    {
+      id: "x3-setouchi",
+      owner: "Setouchi Kisen 株式会社",
+      region: "日本 / 今治",
+      vesselType: "内航タンカー × 1隻",
+      requirement: "機関室モニタリングシステムの追加導入。",
+      budget: 200_000,
+      deadline: "3年目 Q3",
+      status: "new",
+      priorities: ["サポート体制", "価格"],
+      extra: true,
+    },
+    {
+      id: "x3-pacific",
+      owner: "Pacific Ocean Lines",
+      region: "シンガポール",
+      vesselType: "コンテナ船 × 2隻",
+      requirement: "既存システムへの排出量レポート機能の追加。",
+      budget: 350_000,
+      deadline: "3年目 Q4",
+      status: "new",
+      priorities: ["燃費性能", "納期"],
+      extra: true,
+    },
+  ],
+  4: [
+    {
+      id: "x4-nordic",
+      owner: "Nordic Tanker AS",
+      region: "ノルウェー",
+      vesselType: "ケミカルタンカー × 2隻",
+      requirement: "EU ETS の排出量報告を支援するサービス契約。",
+      budget: 400_000,
+      deadline: "4年目 Q3",
+      status: "new",
+      priorities: ["規制適合", "保守契約"],
+      extra: true,
+    },
+    {
+      id: "x4-aegean",
+      owner: "Aegean Bulk Carriers",
+      region: "ギリシャ / ピレウス",
+      vesselType: "ばら積み船 × 2隻",
+      requirement: "姉妹船への燃費改善キットの追加導入。",
+      budget: 450_000,
+      deadline: "4年目 Q4",
+      status: "new",
+      priorities: ["価格", "燃費性能"],
+      extra: true,
+    },
+  ],
+  5: [
+    {
+      id: "x5-setouchi",
+      owner: "Setouchi Kisen 株式会社",
+      region: "日本 / 今治",
+      vesselType: "内航コンテナ船 × 3隻",
+      requirement: "グループ会社への標準採用に向けた試験導入。",
+      budget: 350_000,
+      deadline: "5年目 Q3",
+      status: "new",
+      priorities: ["実績", "サポート体制"],
+      extra: true,
+    },
+    {
+      id: "x5-pacific",
+      owner: "Pacific Ocean Lines",
+      region: "シンガポール",
+      vesselType: "新造コンテナ船 × 2隻",
+      requirement: "竣工の前倒しに伴う、納期短縮を条件とした追加発注。",
+      budget: 600_000,
+      deadline: "5年目 Q4",
+      status: "new",
+      priorities: ["納期", "実績"],
+      extra: true,
+    },
+  ],
+};

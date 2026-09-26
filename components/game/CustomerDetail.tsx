@@ -27,6 +27,7 @@ const dealStatus: Record<DealStatus, { label: string; tone: BadgeTone }> = {
   lost: { label: "失注", tone: "negative" },
   declined: { label: "辞退", tone: "warning" },
   ignored: { label: "未回答", tone: "neutral" },
+  expired: { label: "期限切れ", tone: "neutral" },
   pending: { label: "対応待ち", tone: "warning" },
 };
 
@@ -311,6 +312,10 @@ export function CustomerDetail({
                     ) : deal.status === "declined" ? (
                       <p className="mt-0.5 text-[11px] text-amber-600">
                         裏付けが足りないため、今期の提案を辞退しました。
+                      </p>
+                    ) : deal.status === "expired" ? (
+                      <p className="mt-0.5 text-[11px] text-navy-400">
+                        追加案件に回答しないまま期限が切れました（ペナルティはありません）。
                       </p>
                     ) : deal.status === "ignored" ? (
                       <p className="mt-0.5 text-[11px] text-rose-500">

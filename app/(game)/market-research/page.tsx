@@ -11,6 +11,9 @@ import {
   researchCategories,
   researchReports,
   researchSpendInTurn,
+  hasActiveReport,
+  researchPrice,
+  researchValidUntil,
   type ResearchCategory,
 } from "@/lib/research";
 
@@ -46,7 +49,9 @@ export default function MarketResearchPage() {
     (sum, p) => sum + p.cost,
     0,
   );
-  const purchasedCount = state.researchPurchases.length;
+  // 更新版を買い直しても 1 本として数える
+  const purchasedCount = new Set(state.researchPurchases.map((p) => p.reportId))
+    .size;
   const progress = (purchasedCount / researchReports.length) * 100;
 
   return (
@@ -107,7 +112,13 @@ export default function MarketResearchPage() {
 
           <p className="mt-3 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-navy-500">
             {modeConfig.hidePriorityOrderUntilResearched
-              ? `${modeConfig.label}では、船主の重視順（第1優先）は関係するレポートを買うまで分かりません。買うとその船主の重視順がずっと見えるようになり、その船主から受注すると信頼度が +${modeConfig.researchWinTrustBonus} 上乗せされます。`
+              ? `${modeConfig.label}では、船主の重視順（第1優先）は関係するレポートを買うまで分かりません。買うと購入年${
+                  modeConfig.researchValidYears && modeConfig.researchValidYears > 1
+                    ? `から${modeConfig.researchValidYears}年間`
+                    : "のあいだ"
+                }その船主の重視順が見え、その船主から受注すると信頼度が +${modeConfig.researchWinTrustBonus} 上乗せされます。市場は変わるため、期限が切れたレポートは更新版（${Math.round(
+                  modeConfig.researchRenewalRate * 100,
+                )}%の値段）を買い直せます。`
               : "レポートを買うと、関係する船主の顧客プロファイルに「市場調査からの示唆」が追加されます。マーケティング予算の配分先や、船主への提案方針を決める判断材料にしてください（スコアには直接影響しません）。"}
           </p>
         </CardBody>
@@ -137,26 +148,31 @@ export default function MarketResearchPage() {
             </div>
 
             <ul className="mt-3 grid gap-4 xl:grid-cols-2">
-              {reports.map((report) => (
+              {reports.map((report) => {
+                const price = researchPrice(state, report);
+                const purchased = hasReport(report.id);
+                return (
                 <ResearchReportCard
                   key={report.id}
                   report={report}
-                  purchased={hasReport(report.id)}
+                  purchased={purchased}
+                  expired={purchased && !hasActiveReport(state, report.id)}
+                  validUntil={researchValidUntil(state, report.id)}
+                  price={price}
                   purchasedTurn={purchasedTurnById.get(report.id)}
                   available={isAvailable(report, state.turn)}
-                  affordable={!isLocked && report.cost <= spendable}
+                  affordable={!isLocked && price <= spendable}
                   unaffordableReason={
                     state.gameCompleted
                       ? "ゲームは終了しています"
-                      : committedSpend > 0 && report.cost <= state.availableFunds
+                      : committedSpend > 0 && price <= state.availableFunds
                         ? `確定済みのマーケティング予算 ${money(committedSpend)} を差し引くと、使える資金は ${money(Math.max(0, spendable))} です`
-                        : `使える資金 ${money(Math.max(0, spendable))} に対して ${money(report.cost - Math.max(0, spendable))} 不足しています`
+                        : `使える資金 ${money(Math.max(0, spendable))} に対して ${money(price - Math.max(0, spendable))} 不足しています`
                   }
-                  onPurchase={() =>
-                    purchaseResearchReport(report.id, report.cost)
-                  }
+                  onPurchase={() => purchaseResearchReport(report.id, price)}
                 />
-              ))}
+                );
+              })}
             </ul>
           </section>
         );

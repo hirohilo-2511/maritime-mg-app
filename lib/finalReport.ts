@@ -92,8 +92,9 @@ export function primaryHitRate(state: GameState): number {
     offered += getScenarioTurn(turn, state.mode).requests.length;
   }
   if (offered === 0) return 0;
+  // 追加案件は上積みの扱いのため、本案件だけで数える
   const hits = state.proposalLog.filter(
-    (p) => p.won && p.priorityRank === 0,
+    (p) => p.won && p.priorityRank === 0 && !p.extra,
   ).length;
   return Math.min(1, hits / offered);
 }

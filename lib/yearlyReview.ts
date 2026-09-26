@@ -11,6 +11,7 @@ import {
   channelForPriority,
   priorityRewardRate,
 } from "./synergy";
+import { findExtraRequest } from "./extraRequests";
 import type { GameState, MarketingPlan, ProposalRecord } from "./types";
 
 /**
@@ -90,7 +91,14 @@ function describeMiss(
 export function buildYearlyReview(state: GameState): YearReview[] {
   return state.turnLog.map((log) => {
     const turn = log.turn;
-    const requests = getScenarioTurn(turn, state.mode).requests;
+    // 本案件に、その年に届いた追加案件を加える
+    const requests = [
+      ...getScenarioTurn(turn, state.mode).requests,
+      ...(log.extraRequestIds ?? []).flatMap((id) => {
+        const found = findExtraRequest(state.mode, id);
+        return found ? [found.request] : [];
+      }),
+    ];
     const proposals = state.proposalLog.filter((p) => p.turn === turn);
     const plan = planOf(state, turn);
     const goods: string[] = [];
@@ -107,6 +115,12 @@ export function buildYearlyReview(state: GameState): YearReview[] {
         );
         continue;
       }
+      if (!p && req.extra) {
+        bads.push(
+          `${req.owner}からの追加案件（想定予算 ${usd(req.budget)}）に回答しないまま、期限が切れました。前年の引き合いから生まれた商談機会を活かせていません。`,
+        );
+        continue;
+      }
       if (!p) {
         bads.push(
           `${req.owner}（想定予算 ${usd(req.budget)}）の要求に回答しませんでした。案件をまるごと逃したうえ、信頼度と関係性も低下しています。`,
@@ -117,14 +131,14 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       const channelName = getChannel(p.requiredChannel).name;
       if (p.won && p.priorityRank === 0) {
         goods.push(
-          `${req.owner}：第1優先「${p.focusPriority}」に${channelName}（配分全体の${pct(
+          `${req.extra ? `${req.owner}（追加案件）` : req.owner}：第1優先「${p.focusPriority}」に${channelName}（配分全体の${pct(
             p.channelShare,
           )}）で応え、満額${usd(p.revenue)}を受注しました。`,
         );
       } else if (p.won) {
         const lost = p.requestBudget - p.revenue;
         bads.push(
-          `${req.owner}：第${p.priorityRank + 1}優先「${p.focusPriority}」での受注となり、受注額は${pct(
+          `${req.extra ? `${req.owner}（追加案件）` : req.owner}：第${p.priorityRank + 1}優先「${p.focusPriority}」での受注となり、受注額は${pct(
             priorityRewardRate(p.priorityRank),
           )}（${usd(lost)}の取りこぼし）。${describeMiss(p, primary, plan, state)}`,
         );
@@ -138,7 +152,7 @@ export function buildYearlyReview(state: GameState): YearReview[] {
                 synergyRuleFor(state.mode).minShare,
               )}）に届かず`;
         bads.push(
-          `${req.owner}：「${p.focusPriority}」で提案したものの、${why}失注しました（あと${usd(
+          `${req.extra ? `${req.owner}（追加案件）` : req.owner}：「${p.focusPriority}」で提案したものの、${why}失注しました（あと${usd(
             p.shortfall,
           )}で受注できた計算です）。`,
         );

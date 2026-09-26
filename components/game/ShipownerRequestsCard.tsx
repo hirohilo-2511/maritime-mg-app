@@ -50,10 +50,18 @@ export function ShipownerRequestsCard({
                       {req.owner}
                     </h3>
                     <Badge tone={status.tone}>{status.label}</Badge>
+                    {req.extra ? (
+                      <Badge tone="positive">追加案件</Badge>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 text-[11px] text-navy-400">
                     {req.region}
                   </p>
+                  {req.extra ? (
+                    <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                      前年の見込み引き合いから生まれた商談です。回答しなくてもペナルティはありません（期限切れ）。
+                    </p>
+                  ) : null}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="tabular text-base leading-none font-bold text-navy-900">

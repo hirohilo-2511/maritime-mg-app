@@ -1,4 +1,6 @@
 import { isCustomerResearched } from "./customers";
+import { extraRequestsFor, requestsForTurn } from "./extraRequests";
+import { hasActiveReport, researchPrice, researchReports } from "./research";
 import {
   annualInterest,
   buildInsolvency,
@@ -43,7 +45,10 @@ export function isAnswered(state: GameState, requestId: string): boolean {
   return requestId in state.dealOutcomes;
 }
 
-/** 現在のターンで、まだ回答していない船主要求 */
+/**
+ * 現在のターンで、まだ回答していない船主要求（本案件のみ）。
+ * 追加案件は回答しなくてもペナルティがない（期限切れ）ため含めない。
+ */
 export function unansweredRequests(state: GameState): ShipownerRequest[] {
   return getScenarioTurn(state.turn, state.mode).requests.filter(
     (r) => !isAnswered(state, r.id),
@@ -127,8 +132,10 @@ export function purchaseResearch(
   cost: number,
 ): GameState {
   if (isPlayLocked(state)) return state;
-  const owned = state.researchPurchases.some((p) => p.reportId === reportId);
-  if (owned || cost > spendableFunds(state)) return state;
+  // 有効期限内のレポートは二重に買えない。期限切れは更新版として買い直せる
+  const report = researchReports.find((r) => r.id === reportId);
+  if (hasActiveReport(state, reportId) || cost > spendableFunds(state)) return state;
+  if (report && cost !== researchPrice(state, report)) return state;
 
   return {
     ...state,
@@ -186,9 +193,10 @@ function turnRecord(
     marketingTrust: closing.marketing.trustDelta,
     researchSpend: closing.researchSpend,
     unansweredRequestIds: closing.unanswered.map((r) => r.id),
-    declinedRequestIds: getScenarioTurn(state.turn, state.mode)
-      .requests.filter((r) => state.dealOutcomes[r.id] === "declined")
+    declinedRequestIds: requestsForTurn(state)
+      .filter((r) => state.dealOutcomes[r.id] === "declined")
       .map((r) => r.id),
+    extraRequestIds: extraRequestsFor(state).map((r) => r.id),
     unansweredPenalty: closing.penalty,
     interestExpense: finance.interestExpense,
     repayment: finance.repayment,
@@ -487,9 +495,7 @@ export function finalizeGame(state: GameState): FinalizeResult {
 export function declineRequest(state: GameState, requestId: string): GameState {
   if (isPlayLocked(state) || !state.marketingCommitted) return state;
   if (isAnswered(state, requestId)) return state;
-  const request = getScenarioTurn(state.turn, state.mode).requests.find(
-    (r) => r.id === requestId,
-  );
+  const request = requestsForTurn(state).find((r) => r.id === requestId);
   if (!request) return state;
 
   return {
@@ -533,9 +539,7 @@ export function resolveProposal(
   if (isPlayLocked(state) || !state.marketingCommitted) return null;
   if (isAnswered(state, requestId)) return null;
 
-  const request = getScenarioTurn(state.turn, state.mode).requests.find(
-    (r) => r.id === requestId,
-  );
+  const request = requestsForTurn(state).find((r) => r.id === requestId);
   if (!request) return null;
 
   const cfg = getModeConfig(state.mode);
@@ -581,6 +585,7 @@ export function resolveProposal(
           revenue,
           trustDelta,
           shortfall: synergy.shortfall,
+          extra: request.extra ?? false,
         },
       ],
       availableFunds: state.availableFunds + revenue,

@@ -38,7 +38,7 @@ export function ProposalAction({ request }: { request: ShipownerRequest }) {
           </Badge>
         )
       ) : state.gameCompleted ? (
-        <Badge className="h-8 px-3">未回答</Badge>
+        <Badge className="h-8 px-3">{request.extra ? "期限切れ" : "未回答"}</Badge>
       ) : (
         <div className="flex flex-col items-end gap-1">
         <Button

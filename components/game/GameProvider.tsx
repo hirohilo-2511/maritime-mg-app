@@ -41,6 +41,7 @@ import {
   remainingCredit,
   remainingLoanCount,
 } from "@/lib/loans";
+import { requestsForTurn } from "@/lib/extraRequests";
 import { emptyPlan } from "@/lib/marketing";
 import type {
   DealOutcome,
@@ -91,7 +92,7 @@ type GameContextValue = {
   state: GameState;
   /** 選択中の難易度の設定 */
   modeConfig: ModeConfig;
-  /** 現在のターンのニュース・船主要求（難易度の補正込み） */
+  /** 現在のターンのニュース・船主要求（難易度の補正・追加案件込み） */
   turnData: TurnData;
   /** 最終ターンに到達しているか */
   isFinalTurn: boolean;
@@ -465,9 +466,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const modeConfig = getModeConfig(state.mode);
+  // 本案件に、前年の見込み引き合いで届いた追加案件（実践編）を加える
   const turnData = useMemo(
-    () => getScenarioTurn(state.turn, state.mode),
-    [state.turn, state.mode],
+    () => ({
+      ...getScenarioTurn(state.turn, state.mode),
+      requests: requestsForTurn(state),
+    }),
+    [state],
   );
   const isLocked = isAdvancing || isPlayLocked(state);
   const hasProposalThisTurn = turnData.requests.some((r) =>

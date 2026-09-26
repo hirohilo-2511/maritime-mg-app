@@ -1,4 +1,5 @@
 import { scenarioTurns } from "./modes";
+import { findExtraRequest } from "./extraRequests";
 import type { GameState } from "./types";
 
 /**
@@ -69,7 +70,10 @@ export function buildB2bMetrics(state: GameState): B2bMetrics {
   );
   // 辞退は提案していないため、提案件数・受注率には含めない
   const deals = Object.entries(state.dealOutcomes).flatMap(([id, outcome]) => {
-    const req = requestIndex.get(id);
+    const extra = findExtraRequest(state.mode, id);
+    const req =
+      requestIndex.get(id) ??
+      (extra ? { turn: extra.turn, budget: extra.request.budget } : undefined);
     return req && outcome !== "declined"
       ? [{ ...req, won: outcome === "won" }]
       : [];

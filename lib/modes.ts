@@ -66,6 +66,18 @@ export type ModeConfig = {
   hidePriorityOrderUntilResearched: boolean;
   /** 関係する市場調査を購入済みの船主から受注したときの、信頼度の上乗せ */
   researchWinTrustBonus: number;
+  /**
+   * 市場調査で分かった重視順が有効な年数（購入年を含む）。null = 期限なし。
+   * 期限が切れたレポートは、更新版として買い直せる。
+   */
+  researchValidYears: number | null;
+  /** 更新版の値段（元の値段に対する割合） */
+  researchRenewalRate: number;
+  /**
+   * 前年の見込み引き合い件数が、この基準に届くたびに翌年の追加案件が 1 件届く。
+   * 空配列 = 追加案件なし。
+   */
+  extraRequestLeadThresholds: number[];
   /** 決算で資金がマイナスになったときの緊急融資の条件 */
   emergencyLoan: EmergencyLoanConfig;
 };
@@ -138,6 +150,9 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     researchInsightsInProfile: true,
     hidePriorityOrderUntilResearched: false,
     researchWinTrustBonus: 0,
+    researchValidYears: null,
+    researchRenewalRate: 1,
+    extraRequestLeadThresholds: [],
     emergencyLoan: {
       workingCapital: 100_000,
       creditLimit: initialGameState.availableFunds,
@@ -158,7 +173,8 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
       "受注には対応する施策へ、配分全体の4分の1（25%）以上かつ $100,000 以上の投資が必要",
       "失注時の信頼度ペナルティ −12（辞退は −6、未回答は −15）",
       "決算で資金が不足すると、緊急融資（最大2回・信頼度で金利が決まる）か自主倒産かを判断",
-      "船主の重視順は、関係する市場調査を買うまで分からない（調査済みの船主から受注すると信頼度 +2）",
+      "船主の重視順は、関係する市場調査を買うまで分からない（有効期間2年・更新版は半額。調査済みの船主から受注すると信頼度 +2）",
+      "前年の見込み引き合いが20件・35件に届くと、翌年に追加案件が届く",
       "最終レポートで ROI・CPA などの B2B 指標と年次レビューを評価",
     ],
     initialFunds: 400_000,
@@ -177,6 +193,9 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     researchInsightsInProfile: false,
     hidePriorityOrderUntilResearched: true,
     researchWinTrustBonus: 2,
+    researchValidYears: 2,
+    researchRenewalRate: 0.5,
+    extraRequestLeadThresholds: [20, 35],
     emergencyLoan: {
       workingCapital: 200_000,
       creditLimit: 400_000,
@@ -200,7 +219,7 @@ export function synergyRuleFor(mode: GameMode): SynergyRule {
 }
 
 /** 金額に倍率をかけ、$10,000 単位に丸める（表示上きりの良い値にするため） */
-function scaleAmount(amount: number, rate: number): number {
+export function scaleAmount(amount: number, rate: number): number {
   if (rate === 1) return amount;
   return Math.round((amount * rate) / 10_000) * 10_000;
 }

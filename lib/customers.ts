@@ -1,5 +1,6 @@
 import { getModeConfig, getScenarioTurn } from "./modes";
-import { researchedCustomerIds } from "./research";
+import { extraRequestsFor, findExtraRequest } from "./extraRequests";
+import { activePurchases, researchedCustomerIds } from "./research";
 import type { GameState, ProposalRecord } from "./types";
 
 /** 評価軸（期待水準と提供力を同じ 0–100 スケールで比較する） */
@@ -178,11 +179,11 @@ export function customerByName(name: string): Customer | undefined {
   return customers.find((c) => c.name === name);
 }
 
-/** その船主について、関係する市場調査を購入済みか */
+/** その船主について、関係する市場調査を（有効期限内で）購入済みか */
 export function isCustomerResearched(state: GameState, ownerName: string): boolean {
   const customer = customerByName(ownerName);
   return customer
-    ? researchedCustomerIds(state.researchPurchases).has(customer.id)
+    ? researchedCustomerIds(activePurchases(state)).has(customer.id)
     : false;
 }
 
@@ -233,7 +234,13 @@ export function shortfallAxes(
     .filter((id) => fitGap(expectations, capability, id) <= -10);
 }
 
-export type DealStatus = "won" | "lost" | "declined" | "ignored" | "pending";
+export type DealStatus =
+  | "won"
+  | "lost"
+  | "declined"
+  | "ignored"
+  | "expired"
+  | "pending";
 
 /** 船主との取引履歴 1 件（プレイヤーの提案結果から組み立てる） */
 export type CustomerDeal = {
@@ -253,6 +260,7 @@ export type CustomerDeal = {
  * その船主から届いた要求と、プレイヤーの対応結果を年順に返す。
  * - 提案済み → 受注 / 失注
  * - 辞退した → 辞退
+ * - 追加案件に回答しないまま年を越した → 期限切れ（ペナルティなし）
  * - 過去の年で未提案 → 未回答
  * - 今年で未提案 → 対応待ち（ゲーム終了後は未回答）
  */
@@ -262,7 +270,16 @@ export function customerDeals(
 ): CustomerDeal[] {
   const deals: CustomerDeal[] = [];
   for (let turn = 1; turn <= state.turn; turn++) {
-    for (const r of getScenarioTurn(turn, state.mode).requests) {
+    // 過去の年は、その年に実際に届いた追加案件を記録から引く
+    const log = state.turnLog.find((t) => t.turn === turn);
+    const extras =
+      turn === state.turn && !log
+        ? extraRequestsFor(state, turn)
+        : (log?.extraRequestIds ?? []).flatMap((id) => {
+            const found = findExtraRequest(state.mode, id);
+            return found ? [found.request] : [];
+          });
+    for (const r of [...getScenarioTurn(turn, state.mode).requests, ...extras]) {
       if (r.owner !== customer.name) continue;
       const proposal =
         state.proposalLog.find((p) => p.requestId === r.id) ?? null;
@@ -273,12 +290,14 @@ export function customerDeals(
         : state.dealOutcomes[r.id] === "declined"
           ? "declined"
           : turn < state.turn || state.gameCompleted
-          ? "ignored"
+          ? r.extra
+            ? "expired"
+            : "ignored"
           : "pending";
       deals.push({
         turn,
         requestId: r.id,
-        title: `${r.vesselType} — ${r.requirement}`,
+        title: `${r.extra ? "【追加案件】" : ""}${r.vesselType} — ${r.requirement}`,
         budget: r.budget,
         revenue: proposal?.revenue ?? 0,
         status,

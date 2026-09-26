@@ -15,7 +15,9 @@ import {
   spendableFunds,
   unansweredRequests,
 } from "../lib/game";
-import { S_RANK_MIN_PRIMARY_HIT, buildFinalReport } from "../lib/finalReport";
+import { S_RANK_MIN_PRIMARY_HIT, buildFinalReport, primaryHitRate } from "../lib/finalReport";
+import { extraRequestsFor, requestsForTurn } from "../lib/extraRequests";
+import { extraRequests } from "../lib/mock-data";
 import { buildYearlyReview } from "../lib/yearlyReview";
 import { loanInterest, outstandingDebt } from "../lib/loans";
 import { emptyPlan, marketingChannels } from "../lib/marketing";
@@ -36,6 +38,10 @@ import {
 import { customerDeals, customers } from "../lib/customers";
 import { getChannel } from "../lib/marketing";
 import {
+  countBuyableReports,
+  hasActiveReport,
+  researchPrice,
+  researchValidUntil,
   insightsForCustomer,
   reportCustomerIds,
   reportsForCustomer,
@@ -644,6 +650,74 @@ section("市場調査：船主の理解につながる");
   check("導入編：上乗せなし", introWon.researchBonus === 0);
   const lost = resolveProposal(commit(advBought, plan({ seminar: 300_000 })), req.id, req.priorities[0])!;
   check("失注時は上乗せなし", lost.outcome === "lost" && lost.researchBonus === 0);
+}
+
+// ---------------------------------------------------------------------------
+section("追加案件：前年の見込み引き合いで翌年の案件が増える（実践編）");
+{
+  const withLeads = (mode: "intro" | "advanced", leads: number): GameState => ({
+    ...createInitialGameState(mode),
+    turn: 2,
+    marketingHistory: [{ turn: 1, plan: emptyPlan(), spend: 0, leads, trustDelta: 0, revenue: 0 }],
+  });
+  check("導入編：引き合いが多くても追加案件なし", extraRequestsFor(withLeads("intro", 60)).length === 0);
+  check("実践編：19件ではなし", extraRequestsFor(withLeads("advanced", 19)).length === 0);
+  check("実践編：20件で +1", extraRequestsFor(withLeads("advanced", 20)).length === 1);
+  check("実践編：35件で +2", extraRequestsFor(withLeads("advanced", 35)).length === 2);
+  check("1年目には届かない", extraRequestsFor({ ...withLeads("advanced", 60), turn: 1 }).length === 0);
+  const x = extraRequestsFor(withLeads("advanced", 35));
+  check("想定予算は実践編の補正込み（$300k → $210k）", x[0].budget === 210_000, `${x[0].budget}`);
+  check("同じ年の本案件とは別の船主", [2, 3, 4, 5].every((t) => {
+    const base = new Set(getScenarioTurn(t, "advanced").requests.map((r) => r.owner));
+    const s: GameState = { ...withLeads("advanced", 60), turn: t, marketingHistory: [{ turn: t - 1, plan: emptyPlan(), spend: 0, leads: 60, trustDelta: 0, revenue: 0 }] };
+    return extraRequestsFor(s).every((r) => !base.has(r.owner));
+  }));
+  check("第1優先が 5 施策に分散", new Set(Object.values(extraRequests).flat().map((r) => channelForPriority(r.priorities[0]))).size === 5);
+
+  // 提案・未回答・記録
+  const s0 = commit(withLeads("advanced", 35), plan({ digital: 150_000, fieldSales: 150_000 }));
+  check("今年の要求に含まれる", requestsForTurn(s0).length === getScenarioTurn(2, "advanced").requests.length + 2);
+  check("未回答（ペナルティ対象）には含めない", !unansweredRequests(s0).some((r) => r.extra));
+  const won = resolveProposal(s0, x[0].id, x[0].priorities[0])!;
+  check("追加案件に提案できる", won !== null && won.outcome === "won");
+  check("提案記録に追加案件の印", won.state.proposalLog.at(-1)!.extra === true);
+  const s1 = won.state;
+  const r = advanceGameState(s1);
+  check("年の記録に届いた追加案件", r.state.turnLog.at(-1)!.extraRequestIds.length === 2);
+  check("回答しなかった追加案件はペナルティなし", !r.state.turnLog.at(-1)!.unansweredRequestIds.includes(x[1].id));
+  const done = { ...r.state, gameCompleted: true };
+  const gulf = customers.find((c) => c.name === x[1].owner)!;
+  check("船主カルテ：期限切れ", customerDeals(gulf, done).some((d) => d.requestId === x[1].id && d.status === "expired"));
+  const review = buildFinalReport(done).yearlyReview!;
+  const y2 = review.find((y) => y.turn === 2)!;
+  check("年次レビュー：追加案件の受注を評価", y2.goods.some((t) => t.includes("追加案件")));
+  check("年次レビュー：期限切れを指摘", y2.bads.some((t) => t.includes("期限が切れました")));
+  check("B2B 指標：追加案件の提案を数える", buildFinalReport(done).b2bMetrics!.proposals >= 1);
+  // 第1優先的中率は本案件だけで数える
+  const hitsOnlyExtra = { ...done, proposalLog: done.proposalLog.filter((p) => p.extra) };
+  check("第1優先的中率に追加案件を含めない", primaryHitRate(hitsOnlyExtra) === 0);
+}
+
+section("市場調査の有効期限と更新版（実践編）");
+{
+  const report = researchReports.find((r) => r.id === "r-reg-subsidy")!;
+  const adv = createInitialGameState("advanced");
+  const bought = purchaseResearch(adv, report.id, report.cost);
+  check("購入年は有効", hasActiveReport(bought, report.id) && isPriorityOrderKnown(bought, "Setouchi Kisen 株式会社"));
+  check("翌年も有効", hasActiveReport({ ...bought, turn: 2 }, report.id));
+  const y3 = { ...bought, turn: 3 };
+  check("3年目に期限切れ", !hasActiveReport(y3, report.id) && !isPriorityOrderKnown(y3, "Setouchi Kisen 株式会社"));
+  check("有効期限は2年目まで", researchValidUntil(bought, report.id) === 2);
+  check("有効期間中は二重に買えない", purchaseResearch(bought, report.id, report.cost) === bought);
+  const half = Math.round((report.cost * 0.5) / 10_000) * 10_000;
+  check("更新版は半額", researchPrice(y3, report) === half, `${researchPrice(y3, report)}`);
+  check("元の値段では更新できない", purchaseResearch(y3, report.id, report.cost) === y3);
+  const renewed = purchaseResearch(y3, report.id, half);
+  check("更新版を買うと再び見える", renewed !== y3 && isPriorityOrderKnown(renewed, "Setouchi Kisen 株式会社"));
+  check("更新後の期限", researchValidUntil(renewed, report.id) === 4);
+  check("買えるレポート数に期限切れを含む", countBuyableReports(y3) > countBuyableReports(bought));
+  const intro = purchaseResearch(createInitialGameState("intro"), report.id, report.cost);
+  check("導入編は期限なし", hasActiveReport({ ...intro, turn: 5 }, report.id) && researchValidUntil(intro, report.id) === null);
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

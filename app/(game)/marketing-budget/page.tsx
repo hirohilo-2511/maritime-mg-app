@@ -17,6 +17,7 @@ import {
   marketingChannels,
   simulateMarketing,
 } from "@/lib/marketing";
+import { extraRequestCount } from "@/lib/extraRequests";
 import { backingStatus, channelShare } from "@/lib/synergy";
 import type { MarketingChannelId } from "@/lib/types";
 
@@ -58,6 +59,10 @@ export default function MarketingBudgetPage() {
       ? `かつ ${money(modeConfig.minSynergySpend)} 以上`
       : ""
   }`;
+
+  const thresholds = modeConfig.extraRequestLeadThresholds;
+  const nextExtras = extraRequestCount(state.mode, outcome.leads);
+  const nextThreshold = thresholds.find((t) => outcome.leads < t);
 
   const budget = Math.max(0, state.availableFunds);
   const remaining = state.availableFunds - outcome.spend;
@@ -257,6 +262,24 @@ export default function MarketingBudgetPage() {
                   <span className="text-sm font-medium text-navy-300">件</span>
                 </p>
               </div>
+
+              {/* 実践編：見込み引き合いが翌年の追加案件になる */}
+              {thresholds.length > 0 && !isFinalTurn ? (
+                <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-emerald-800">
+                  <p className="font-semibold">
+                    来年の追加案件：
+                    {nextExtras > 0 ? `+${nextExtras}件の見込み` : "届かない見込み"}
+                  </p>
+                  <p className="mt-0.5 text-emerald-700">
+                    見込み引き合いが {thresholds.map((t) => `${t}件`).join("・")}{" "}
+                    に届くごとに、翌年の案件が1件ずつ増えます
+                    {nextThreshold !== undefined
+                      ? `（次の基準まであと ${nextThreshold - outcome.leads}件）`
+                      : "（最大まで到達）"}
+                    。
+                  </p>
+                </div>
+              ) : null}
 
               <dl className="mt-3 divide-y divide-navy-100">
                 <div className="flex items-baseline justify-between py-2">

@@ -88,6 +88,9 @@ function DataBars({ report }: { report: ResearchReport }) {
 export function ResearchReportCard({
   report,
   purchased,
+  expired = false,
+  validUntil = null,
+  price,
   purchasedTurn,
   available,
   affordable,
@@ -96,6 +99,12 @@ export function ResearchReportCard({
 }: {
   report: ResearchReport;
   purchased: boolean;
+  /** 購入済みだが有効期限が切れている（更新版を買い直せる） */
+  expired?: boolean;
+  /** 有効期限の最終年（期限なしなら null） */
+  validUntil?: number | null;
+  /** 今買う場合の値段（更新版は割引） */
+  price: number;
   /** 購入したターン（未購入なら undefined） */
   purchasedTurn?: number;
   /** 現在のターンで購入可能か */
@@ -118,11 +127,17 @@ export function ResearchReportCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-bold text-navy-900">{report.title}</h3>
-            {purchased ? (
+            {purchased && expired ? (
+              <Badge tone="warning">
+                <Icon name="alert" className="h-3 w-3" />
+                期限切れ（{validUntil}年目まで有効だった）
+              </Badge>
+            ) : purchased ? (
               <Badge tone="positive">
                 <Icon name="check" className="h-3 w-3" />
                 購入済み
                 {purchasedTurn ? ` · ${purchasedTurn}年目` : ""}
+                {validUntil ? ` · ${validUntil}年目まで有効` : ""}
               </Badge>
             ) : available ? (
               <Badge tone="info">購入可能</Badge>
@@ -133,9 +148,14 @@ export function ResearchReportCard({
           <p className="mt-0.5 text-[11px] text-navy-400">{report.provider}</p>
           <ResearchBenefit report={report} />
         </div>
-        {!purchased ? (
+        {!purchased || expired ? (
           <p className="tabular shrink-0 text-right text-base leading-none font-bold text-navy-900">
-            {money(report.cost)}
+            {money(price)}
+            {expired ? (
+              <span className="block text-[10px] font-medium text-navy-400">
+                更新版
+              </span>
+            ) : null}
           </p>
         ) : null}
       </div>
@@ -146,6 +166,11 @@ export function ResearchReportCard({
           <p className="mt-4 text-[10px] font-semibold tracking-widest text-navy-400">
             調査からの示唆
           </p>
+          {expired ? (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+              情報が古くなったため、関係する船主の重視順は再び分からなくなりました。
+            </p>
+          ) : null}
           <ul className="mt-2 space-y-2">
             {report.insights.map((insight) => (
               <li
@@ -164,6 +189,23 @@ export function ResearchReportCard({
               </li>
             ))}
           </ul>
+          {expired ? (
+            <Button
+              variant="secondary"
+              size="md"
+              className="mt-3 w-full"
+              disabled={!affordable}
+              onClick={onPurchase}
+            >
+              {affordable ? `更新版を ${money(price)} で購入する` : "購入できません"}
+            </Button>
+          ) : null}
+          {expired && !affordable && unaffordableReason ? (
+            <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-rose-600">
+              <Icon name="alert" className="mt-0.5 h-3 w-3 shrink-0" />
+              {unaffordableReason}
+            </p>
+          ) : null}
         </>
       ) : (
         <>
@@ -195,7 +237,7 @@ export function ResearchReportCard({
               ? `${report.availableFrom}年目以降に公開`
               : !affordable
                 ? "購入できません"
-                : `${money(report.cost)} で購入する`}
+                : `${money(price)} で購入する`}
           </Button>
           {/* 無効化したボタンのツールチップは端末によって表示されないため、理由を本文で示す */}
           {available && !affordable && unaffordableReason ? (

@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
 import { navItems, secondaryNavItems, type NavItem } from "@/lib/nav";
 import { company } from "@/lib/mock-data";
-import { countUnpurchasedAvailable } from "@/lib/research";
+import { countBuyableReports } from "@/lib/research";
 import type { GameState, TurnData } from "@/lib/types";
 
 /** 決算処理中に表示するスピナー */
@@ -97,10 +97,7 @@ function badgeFor(
     return { text: "未確定", tone: "warning" };
   }
   if (item.showResearchCount) {
-    const count = countUnpurchasedAvailable(
-      state.researchPurchases,
-      state.turn,
-    );
+    const count = countBuyableReports(state);
     return count > 0 ? { text: String(count), tone: "info" } : null;
   }
   return null;

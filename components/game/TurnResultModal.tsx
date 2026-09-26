@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { EmergencyDecision } from "@/components/game/EmergencyDecision";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
-import { getScenarioTurn } from "@/lib/modes";
+import { requestsForTurn } from "@/lib/extraRequests";
 
 /** 決算明細の 1 行 */
 function Row({
@@ -142,9 +142,14 @@ export function TurnResultModal() {
         : `${p.owner} への提案は失注`,
     )
     .concat(
-      getScenarioTurn(fromTurn, state.mode)
-        .requests.filter((r) => state.dealOutcomes[r.id] === "declined")
+      requestsForTurn(state, fromTurn)
+        .filter((r) => state.dealOutcomes[r.id] === "declined")
         .map((r) => `${r.owner} への提案は今期辞退`),
+    )
+    .concat(
+      requestsForTurn(state, fromTurn)
+        .filter((r) => r.extra && !(r.id in state.dealOutcomes))
+        .map((r) => `${r.owner} からの追加案件は期限切れ（ペナルティなし）`),
     );
   // クランプ後の実際の変動量を表示する
   const trustDelta = trustAfter - trustBefore;

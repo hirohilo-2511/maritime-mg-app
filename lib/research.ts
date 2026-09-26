@@ -1,5 +1,6 @@
 import type { IconName } from "@/components/ui/Icon";
-import type { ResearchPurchase } from "./types";
+import { getModeConfig } from "./modes";
+import type { GameState, ResearchPurchase } from "./types";
 
 export type ResearchCategory = "demand" | "competitor" | "regulation";
 
@@ -388,4 +389,48 @@ export function researchedCustomerIds(purchases: ResearchPurchase[]): Set<string
       .filter((r) => owned.has(r.id))
       .flatMap((r) => reportCustomerIds(r)),
   );
+}
+
+/**
+ * 有効期限内の購入記録。実践編では購入年を含め researchValidYears 年だけ有効で、
+ * 期限が切れると重視順は再び見えなくなる（市場は変わるため、調査は更新が必要）。
+ */
+export function activePurchases(state: GameState): ResearchPurchase[] {
+  const years = getModeConfig(state.mode).researchValidYears;
+  return years === null
+    ? state.researchPurchases
+    : state.researchPurchases.filter((p) => state.turn - p.turn < years);
+}
+
+/** そのレポートを有効期限内で保有しているか */
+export function hasActiveReport(state: GameState, reportId: string): boolean {
+  return activePurchases(state).some((p) => p.reportId === reportId);
+}
+
+/** 過去に購入したことがあるか（期限切れを含む） */
+export function hasEverPurchased(state: GameState, reportId: string): boolean {
+  return state.researchPurchases.some((p) => p.reportId === reportId);
+}
+
+/** 今買う場合の値段。期限切れのレポートは更新版として割引される */
+export function researchPrice(state: GameState, report: ResearchReport): number {
+  if (!hasEverPurchased(state, report.id)) return report.cost;
+  const rate = getModeConfig(state.mode).researchRenewalRate;
+  return Math.round((report.cost * rate) / 10_000) * 10_000;
+}
+
+/** 有効期限の最終年（期限なし・未購入なら null） */
+export function researchValidUntil(state: GameState, reportId: string): number | null {
+  const years = getModeConfig(state.mode).researchValidYears;
+  const last = state.researchPurchases
+    .filter((p) => p.reportId === reportId)
+    .reduce((max, p) => Math.max(max, p.turn), 0);
+  return years === null || last === 0 ? null : last + years - 1;
+}
+
+/** 今買えるレポートの数（未購入、または有効期限が切れて更新できるもの） */
+export function countBuyableReports(state: GameState): number {
+  return researchReports.filter(
+    (r) => isAvailable(r, state.turn) && !hasActiveReport(state, r.id),
+  ).length;
 }
