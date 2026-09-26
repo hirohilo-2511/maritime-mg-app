@@ -2,11 +2,31 @@ import { buildB2bMetrics, type B2bMetrics } from "./b2bMetrics";
 import { getChannel, marketingChannels, type MarketingChannel } from "./marketing";
 import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
 import { additionalSpendNeeded, channelForPriority } from "./synergy";
+import { outstandingDebt, remainingCredit } from "./loans";
 import { buildYearlyReview, type YearReview } from "./yearlyReview";
-import type { GameMode, GameState, MarketingChannelId } from "./types";
+import type {
+  EndReason,
+  GameMode,
+  GameState,
+  LoanRecord,
+  MarketingChannelId,
+} from "./types";
 
-/** D は倒産（決算後に資金がマイナス）による途中終了 */
+/** D は倒産（自主倒産・融資を受けられず倒産・最終年の債務超過）による終了 */
 export type Grade = "S" | "A" | "B" | "C" | "D";
+
+/** 緊急融資の総括（融資を受けていなければ null） */
+export type LoanSummary = {
+  loans: LoanRecord[];
+  /** 借入総額 */
+  totalBorrowed: number;
+  /** 支払った利息の合計 */
+  totalInterest: number;
+  /** 最終年に一括返済した元本 */
+  totalRepaid: number;
+  /** 未返済の元本（途中で倒産した場合） */
+  outstanding: number;
+};
 
 export type ChannelBreakdown = {
   channel: MarketingChannel;
@@ -19,8 +39,12 @@ export type FinalReportData = {
   mode: GameMode;
   /** 実際にプレイした年数（倒産した場合は倒産した年まで） */
   yearsPlayed: number;
-  /** 倒産で終了したか */
+  /** 倒産（D 評価）で終了したか */
   bankrupt: boolean;
+  /** ゲームの終わり方（未終了・旧データは null） */
+  endReason: EndReason | null;
+  /** 緊急融資の総括（融資を受けていなければ null） */
+  loanSummary: LoanSummary | null;
   /** ファシリテーター操作（ターン移動）が行われ、履歴が実際の進行と一致しない可能性があるか */
   demoOperated: boolean;
   grade: Grade;
@@ -114,10 +138,17 @@ function gradeFor(
   return "C";
 }
 
-function gradeTagline(grade: Grade, years: number): string {
+function gradeTagline(
+  grade: Grade,
+  years: number,
+  endReason: EndReason | null,
+  borrowed: boolean,
+): string {
   switch (grade) {
     case "S":
-      return "業界内でも突出した経営判断でした。顧客からほぼ全幅の信頼を得たうえで、財務も大きく伸ばしています。";
+      return borrowed
+        ? "緊急融資を受ける危機から、見事な V 字回復を遂げました。借入を完済したうえで、顧客からほぼ全幅の信頼を得て財務も大きく伸ばしています。"
+        : "業界内でも突出した経営判断でした。顧客からほぼ全幅の信頼を得たうえで、財務も大きく伸ばしています。";
     case "A":
       return "堅実かつ機動力のある経営でした。資金・信頼度ともにバランス良く伸ばせています。";
     case "B":
@@ -125,8 +156,48 @@ function gradeTagline(grade: Grade, years: number): string {
     case "C":
       return `厳しい${years}年間でした。資金・信頼度のいずれか、あるいは両方が伸び悩む結果になっています。`;
     case "D":
-      return `${years}年目の決算で資金が尽き、倒産しました。受注につながらない投資と固定費が、手元資金を上回ってしまいました。`;
+      switch (endReason) {
+        case "declined":
+          return `${years}年目の決算で資金が不足し、緊急融資を受けずに自主倒産を選びました。受注につながらない投資と固定費が、手元資金を上回ってしまいました。`;
+        case "denied":
+          return `${years}年目の決算で再び資金が不足しましたが、緊急融資の回数・借入枠を使い切っており、倒産しました。融資による延命のあいだに、収益構造を立て直せませんでした。`;
+        case "insolvent":
+          return "最終年に借入を返済した結果、資金がマイナス（債務超過）となりました。融資で事業は続けられたものの、借入を返せるだけの利益を生み出せませんでした。";
+        default:
+          return `${years}年目の決算で資金が尽き、倒産しました。受注につながらない投資と固定費が、手元資金を上回ってしまいました。`;
+      }
   }
+}
+
+const usd = (n: number) =>
+  `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US")}`;
+
+function buildLoanSummary(state: GameState): LoanSummary | null {
+  if (state.loans.length === 0) return null;
+  return {
+    loans: state.loans,
+    totalBorrowed: state.loans.reduce((sum, l) => sum + l.principal, 0),
+    totalInterest: state.turnLog.reduce((sum, t) => sum + t.interestExpense, 0),
+    totalRepaid: state.turnLog.reduce((sum, t) => sum + t.repayment, 0),
+    outstanding: outstandingDebt(state),
+  };
+}
+
+/** 緊急融資を受けた場合に、評価理由へ添える一文 */
+function loanNote(summary: LoanSummary | null, grade: Grade): string {
+  if (!summary) return "";
+  const rates = summary.loans
+    .map((l) => `${Math.round(l.rate * 1000) / 10}%`)
+    .join("・");
+  const base = `この間に緊急融資を${summary.loans.length}回（計${usd(
+    summary.totalBorrowed,
+  )}、金利${rates}）受け、利息を計${usd(summary.totalInterest)}支払っています。`;
+  if (summary.totalRepaid > 0) {
+    return `${base}最終資金は元本${usd(summary.totalRepaid)}を一括返済した後の額で評価しています。${
+      grade === "S" ? "資金繰りの危機から立て直し、S 評価の条件をすべて満たしたのは見事な V 字回復です。" : ""
+    }`;
+  }
+  return base;
 }
 
 /** 倒産時の評価理由。資金繰りの観点から何が起きたかを説明する */
@@ -140,12 +211,31 @@ function buildBankruptcyReason(state: GameState): string {
   );
   const outcomes = Object.values(state.dealOutcomes);
   const won = outcomes.filter((o) => o === "won").length;
-  const usd = (n: number) =>
-    `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US")}`;
+  const last = state.turnLog.at(-1);
+  const funds = `${usd(state.availableFunds)}（初期資金 ${usd(cfg.initialFunds)}）`;
 
-  return `${state.turn}年目の決算後、資金は${usd(state.availableFunds)}（初期資金 ${usd(
-    cfg.initialFunds,
-  )}）となり倒産しました。この間のマーケティング投資は${usd(
+  let opening: string;
+  switch (state.endReason) {
+    case "declined":
+      opening = `${state.turn}年目の決算後、資金は${funds}となり、緊急融資を受けずに自主倒産を選びました。`;
+      break;
+    case "denied":
+      opening = `${state.turn}年目の決算後、資金は${funds}となりましたが、${
+        last?.loanDenial === "countLimit"
+          ? `緊急融資はすでに上限の${cfg.emergencyLoan.maxLoans}回まで受けており`
+          : `借入枠の残り${usd(remainingCredit(state))}では不足額を賄えず`
+      }、倒産しました。`;
+      break;
+    case "insolvent":
+      opening = `最終年に借入元本${usd(last?.repayment ?? 0)}と利息${usd(
+        last?.interestExpense ?? 0,
+      )}を支払った結果、資金は${funds}となり、債務超過で終了しました。`;
+      break;
+    default:
+      opening = `${state.turn}年目の決算後、資金は${funds}となり倒産しました。`;
+  }
+
+  return `${opening}${loanNote(buildLoanSummary(state), "D")}この間のマーケティング投資は${usd(
     marketingSpend,
   )}、市場調査費は${usd(researchSpend)}で、提案${outcomes.length}件のうち受注は${won}件でした。B2B では受注額が入る前に固定費と販促費が出ていくため、「当たる投資」に絞れないまま支出を続けると資金繰りが先に行き詰まります。${
     cfg.minSynergySpend > 0
@@ -427,17 +517,30 @@ export function buildFinalReport(state: GameState): FinalReportData {
     state.bankrupt,
   );
   const style = buildStyle(channelBreakdown, state.trustScore);
+  const loanSummary = buildLoanSummary(state);
 
   return {
     mode: state.mode,
     yearsPlayed: state.turn,
     bankrupt: state.bankrupt,
+    endReason: state.endReason,
+    loanSummary,
     demoOperated: state.demoOperated,
     grade,
-    gradeTagline: gradeTagline(grade, state.turn),
+    gradeTagline: gradeTagline(
+      grade,
+      state.turn,
+      state.endReason,
+      loanSummary !== null,
+    ),
     evaluationReason: state.bankrupt
       ? buildBankruptcyReason(state)
-      : buildEvaluationReason(grade, fundsRatio, state.trustScore, hitRate),
+      : `${buildEvaluationReason(
+          grade,
+          fundsRatio,
+          state.trustScore,
+          hitRate,
+        )}${loanNote(loanSummary, grade)}`,
     primaryHitRate: hitRate,
     finalFunds: state.availableFunds,
     initialFunds: cfg.initialFunds,

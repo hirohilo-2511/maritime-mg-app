@@ -1,6 +1,11 @@
 import { ASSUMED_GROSS_MARGIN } from "./b2bMetrics";
 import { getChannel } from "./marketing";
-import { getScenarioTurn, synergyRuleFor } from "./modes";
+import {
+  DISTRESSED_LOAN_RATE,
+  getModeConfig,
+  getScenarioTurn,
+  synergyRuleFor,
+} from "./modes";
 import {
   additionalSpendNeeded,
   channelForPriority,
@@ -37,12 +42,18 @@ export type YearReview = {
   goods: string[];
   /** 改善すべき点（機会損失・効果の薄い投資など） */
   bads: string[];
+  /** 教育的な注記（高金利での借入など） */
+  notes: string[];
+  /** この年の締めで緊急融資を受けたか */
+  borrowed: boolean;
   bankrupt: boolean;
 };
 
 const usd = (n: number) =>
   `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US")}`;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+/** 金利の表示（0.1% 単位） */
+const ratePct = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 const verdictLabels: Record<YearVerdict, string> = {
   excellent: "好調",
@@ -173,20 +184,70 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       }
     }
 
-    if (log.bankrupt) {
+    const notes: string[] = [];
+    if (log.interestExpense > 0) {
       bads.push(
-        `この年の決算で資金が${usd(log.fundsEnd)}となり、倒産しました（固定費${usd(
-          log.settlementExpense,
-        )}・マーケティング${usd(log.marketingSpend)}に対し、売上${usd(
-          log.settlementRevenue,
-        )}と受注${usd(log.wonRevenue)}で賄えませんでした）。`,
+        `緊急融資の利息${usd(log.interestExpense)}を支払い、利益を圧迫しました。`,
+      );
+    }
+    if (log.repayment > 0 && !log.bankrupt) {
+      goods.push(`借入元本${usd(log.repayment)}を一括返済し、完済しました。`);
+    }
+
+    // 決算の不足を何で賄えなかったか（融資・倒産の説明に使う）
+    const shortfallCause = `固定費${usd(log.settlementExpense)}・マーケティング${usd(
+      log.marketingSpend,
+    )}${log.interestExpense > 0 ? `・利息${usd(log.interestExpense)}` : ""}に対し、売上${usd(
+      log.settlementRevenue,
+    )}と受注${usd(log.wonRevenue)}で賄えませんでした`;
+
+    if (log.loan) {
+      const { loan } = log;
+      bads.push(
+        `この年の決算で${usd(loan.deficit)}の資金が不足し（${shortfallCause}）、${
+          loan.number
+        }回目の緊急融資${usd(loan.principal)}（うち運転資金${usd(
+          loan.workingCapital,
+        )}）を年利${ratePct(loan.rate)}で借り入れました${
+          loan.penaltyRate > 0
+            ? `（信頼度${loan.trustAtBorrow}による${ratePct(loan.baseRate)}に、2回目の上乗せ${ratePct(
+                loan.penaltyRate,
+              )}を加算）`
+            : `（信頼度${loan.trustAtBorrow}による金利）`
+        }。資金繰りの悪化で信頼度も${
+          getModeConfig(state.mode).emergencyLoan.trustPenalty
+        }下がっています。`,
+      );
+      if (loan.rate >= DISTRESSED_LOAN_RATE) {
+        notes.push(
+          `年利${ratePct(loan.rate)}での借入は、実質的に破綻状態での延命措置です。信用力が落ちた企業にはこれほどの高金利でしか資金が集まらず、利息の支払いがさらに経営を圧迫する悪循環に陥りやすくなります。`,
+        );
+      }
+    } else if (log.bankrupt && log.repayment > 0) {
+      bads.push(
+        `最終年に借入元本${usd(log.repayment)}を返済した結果、資金が${usd(
+          log.fundsEnd,
+        )}となり、債務超過で終了しました。`,
+      );
+    } else if (log.bankrupt) {
+      const decision =
+        log.insolvency === "declined"
+          ? "緊急融資を受けずに自主倒産を選びました"
+          : log.insolvency === "denied"
+            ? log.loanDenial === "countLimit"
+              ? "緊急融資の回数上限に達しており、倒産しました"
+              : "残りの借入枠で不足額を賄えず、倒産しました"
+            : "倒産しました";
+      bads.push(
+        `この年の決算で資金が${usd(log.fundsEnd)}となり、${decision}（${shortfallCause}）。`,
       );
     }
 
     const potentialRevenue = requests.reduce((sum, r) => sum + r.budget, 0);
     const capture =
       potentialRevenue > 0 ? log.wonRevenue / potentialRevenue : 1;
-    const verdict: YearVerdict = log.bankrupt
+    const verdict: YearVerdict =
+      log.bankrupt || log.loan
       ? "poor"
       : capture >= 0.9
         ? "excellent"
@@ -211,6 +272,8 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       roi,
       goods,
       bads,
+      notes,
+      borrowed: log.loan !== null,
       bankrupt: log.bankrupt,
     };
   });

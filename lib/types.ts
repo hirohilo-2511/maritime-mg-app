@@ -35,8 +35,20 @@ export type GameState = {
   turnLog: TurnRecord[];
   /** 最終ターンを終了し、総合フィードバック画面を表示できる状態か */
   gameCompleted: boolean;
-  /** 決算後に資金がマイナスになり、倒産でゲームが終了したか */
+  /**
+   * 倒産（D 評価）でゲームが終了したか。
+   * 自主倒産・融資を受けられずに倒産・最終年の債務超過のいずれか（内訳は endReason）
+   */
   bankrupt: boolean;
+  /** ゲームの終わり方（プレイ中は null） */
+  endReason: EndReason | null;
+  /** 緊急融資の記録（返済済みのものも残す） */
+  loans: LoanRecord[];
+  /**
+   * 決算で資金がマイナスになり、緊急経営判断（融資 / 自主倒産）を待っている状態。
+   * 入っているあいだは、判断以外の操作を受け付けない。
+   */
+  pendingInsolvency: PendingInsolvency | null;
   /**
    * 船主ごとの関係性スコアの変動（船主名 → 変動量）。
    * 顧客データの初期値に加算して表示する。受注・失注・未回答で変わる。
@@ -47,6 +59,63 @@ export type GameState = {
   /** セッションに参加しているチーム名 */
   teams: string[];
 };
+
+/**
+ * ゲームの終わり方。
+ * completed = 最終年まで完走 / declined = 融資を受けずに自主倒産 /
+ * denied = 融資の回数・枠を使い切り倒産 / insolvent = 最終年の返済後に債務超過
+ */
+export type EndReason = "completed" | "declined" | "denied" | "insolvent";
+
+/** 緊急融資を受けられない理由。countLimit = 回数上限 / creditLimit = 借入枠の不足 */
+export type LoanDenial = "countLimit" | "creditLimit";
+
+/** 緊急融資 1 件の記録。金利は借入時に固定する */
+export type LoanRecord = {
+  /** 資金不足になった決算の年（この年の締めで借り入れた） */
+  turn: number;
+  /** 何回目の融資か（1 始まり） */
+  number: number;
+  /** 元本（= 不足額 + 運転資金） */
+  principal: number;
+  /** 決算で不足した額（補填分） */
+  deficit: number;
+  /** 翌年のために上乗せした運転資金 */
+  workingCapital: number;
+  /** 信頼度で決まる金利（0–1） */
+  baseRate: number;
+  /** 2回目以降の上乗せ金利（0–1） */
+  penaltyRate: number;
+  /** 適用金利（baseRate + penaltyRate） */
+  rate: number;
+  /** 金利を決めたときの信頼度（融資によるペナルティ適用前） */
+  trustAtBorrow: number;
+  /** 返済した年（未返済なら null） */
+  repaidTurn: number | null;
+};
+
+/** 緊急経営判断で提示する融資条件 */
+export type LoanOffer = Omit<LoanRecord, "turn" | "repaidTurn"> & {
+  /** 借入枠が足りず、運転資金を満額より減らしたか */
+  workingCapitalReduced: boolean;
+  /** 融資を受けた場合の信頼度の変動 */
+  trustPenalty: number;
+};
+
+/** 緊急経営判断を待っている状態 */
+export type PendingInsolvency = {
+  /** 資金不足になった決算の年 */
+  turn: number;
+  /** 不足額（正の値） */
+  deficit: number;
+  /** 融資の提示条件（受けられない場合は null） */
+  offer: LoanOffer | null;
+  /** 融資を受けられない理由（受けられる場合は null） */
+  denial: LoanDenial | null;
+};
+
+/** 資金不足になった年に、どう対応したか */
+export type InsolvencyResolution = "loan" | "declined" | "denied";
 
 /** 提案の結果。重視ポイントと投資チャネルの相性で決まる */
 export type DealOutcome = "won" | "lost";
@@ -72,7 +141,19 @@ export type TurnRecord = {
   /** 回答しなかった船主要求 */
   unansweredRequestIds: string[];
   unansweredPenalty: number;
-  /** この年の決算で倒産したか */
+  /** この年に支払った緊急融資の利息 */
+  interestExpense: number;
+  /** 最終年に一括返済した元本（最終年以外は 0） */
+  repayment: number;
+  /** この年の締めで受けた緊急融資（受けていなければ null） */
+  loan: LoanRecord | null;
+  /** 年末の借入残高 */
+  debtEnd: number;
+  /** 決算で資金が不足したときの対応（不足しなかった年・判断待ちは null） */
+  insolvency: InsolvencyResolution | null;
+  /** 融資を受けられなかった理由（insolvency が denied のときのみ） */
+  loanDenial: LoanDenial | null;
+  /** この年で倒産（D 評価）となったか */
   bankrupt: boolean;
 };
 

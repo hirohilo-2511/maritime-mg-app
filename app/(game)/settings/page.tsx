@@ -85,6 +85,7 @@ function Segmented<T extends string | number>({
 export default function SettingsPage() {
   const {
     state,
+    debt,
     modeConfig,
     isFinalTurn,
     setTotalTurns,
@@ -118,7 +119,11 @@ export default function SettingsPage() {
           action={
             state.gameCompleted ? (
               <Badge tone={state.bankrupt ? "negative" : "positive"}>
-                {state.bankrupt ? "倒産で終了" : "終了"}
+                {!state.bankrupt
+                  ? "終了"
+                  : state.endReason === "insolvent"
+                    ? "債務超過で終了"
+                    : "倒産で終了"}
               </Badge>
             ) : isFinalTurn ? (
               <Badge tone="warning">最終ターン</Badge>
@@ -136,6 +141,13 @@ export default function SettingsPage() {
                 value: `${state.turn}年目 / 全${state.totalTurns}年`,
               },
               { label: "利用可能資金", value: money(state.availableFunds) },
+              {
+                label: "緊急融資",
+                value:
+                  state.loans.length === 0
+                    ? "なし"
+                    : `${state.loans.length}回・借入残高 ${money(debt)}`,
+              },
               { label: "信頼度スコア", value: `${state.trustScore} / 100` },
               {
                 label: "購入済みレポート",

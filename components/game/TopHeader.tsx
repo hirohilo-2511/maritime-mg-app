@@ -20,7 +20,10 @@ export function TopHeader({
   title: string;
   onOpenSidebar?: () => void;
 }) {
-  const { state, modeConfig } = useGame();
+  const { state, modeConfig, debt } = useGame();
+  const activeRates = state.loans
+    .filter((l) => l.repaidTurn === null)
+    .map((l) => `${Math.round(l.rate * 1000) / 10}%`);
   const { money } = useMoney();
 
   return (
@@ -66,6 +69,15 @@ export function TopHeader({
             label="利用可能資金"
             value={money(state.availableFunds)}
           />
+          {/* 緊急融資を受けているときだけ表示する */}
+          {debt > 0 ? (
+            <StatPill
+              icon="alert"
+              label="借入残高"
+              value={money(debt)}
+              unit={`年利 ${activeRates.join("・")}`}
+            />
+          ) : null}
           <StatPill
             icon="shield"
             label="企業の信頼度スコア"

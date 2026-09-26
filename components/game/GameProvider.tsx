@@ -19,11 +19,14 @@ import {
   type ModeConfig,
 } from "@/lib/modes";
 import {
+  acceptEmergencyLoan as acceptLoanFor,
   advanceGameState,
   canEndTurn as canEndTurnFor,
+  declareBankruptcy as declareBankruptcyFor,
   finalizeGame,
   hasProposedThisTurn,
   isAnswered,
+  isPlayLocked,
   purchaseResearch,
   resolveProposal,
   spendableFunds,
@@ -31,13 +34,22 @@ import {
   unansweredRequests,
   type ProposalResolution,
 } from "@/lib/game";
+import {
+  annualInterest,
+  outstandingDebt,
+  remainingCredit,
+  remainingLoanCount,
+} from "@/lib/loans";
 import { emptyPlan } from "@/lib/marketing";
 import type {
   DealOutcome,
+  EndReason,
   GameMode,
   GameState,
+  LoanRecord,
   MarketingOutcome,
   MarketingPlan,
+  PendingInsolvency,
   ShipownerRequest,
   TurnData,
   TurnSettlement,
@@ -47,7 +59,7 @@ import type {
 export type TurnResult = {
   /** 終了したターン */
   fromTurn: number;
-  /** 開始したターン（倒産した場合は fromTurn のまま） */
+  /** 開始したターン（判断待ち・倒産した場合は fromTurn のまま） */
   toTurn: number;
   settlement: TurnSettlement;
   /** 実行されたマーケティング投資の結果 */
@@ -58,8 +70,16 @@ export type TurnResult = {
   unansweredCount: number;
   /** 未回答による信頼度ペナルティ */
   unansweredPenalty: number;
-  /** この決算で倒産したか */
+  /** この決算で支払った緊急融資の利息 */
+  interest: number;
+  /** 資金不足で緊急経営判断を待っている場合の内容（決着したら null） */
+  insolvency: PendingInsolvency | null;
+  /** この決算の後に受けた緊急融資 */
+  loan: LoanRecord | null;
+  /** この決算の後に倒産で終了したか */
   bankrupt: boolean;
+  /** 倒産した場合の終わり方 */
+  endReason: EndReason | null;
   fundsBefore: number;
   fundsAfter: number;
   trustBefore: number;
@@ -82,8 +102,20 @@ type GameContextValue = {
   advanceTurn: () => void;
   /** 直近のターン終了結果。未確認のあいだモーダルを表示する */
   turnResult: TurnResult | null;
-  /** 決算モーダルを閉じる */
+  /** 決算モーダルを閉じる（緊急経営判断の待機中は閉じない） */
   dismissTurnResult: () => void;
+  /** 緊急融資を受けて次の年へ進む */
+  acceptEmergencyLoan: () => void;
+  /** 融資を受けずに（受けられずに）倒産でゲームを終了する */
+  declareBankruptcy: () => void;
+  /** 借入残高 */
+  debt: number;
+  /** 次の決算（最終年は締め）で支払う利息 */
+  nextInterest: number;
+  /** 残りの借入枠 */
+  creditLeft: number;
+  /** 残りの融資回数 */
+  loansLeft: number;
   /** セッションの総ターン数を変更する（現在のターンより小さくはできない・終了後は不可） */
   setTotalTurns: (totalTurns: number) => void;
   /** 参加チームを追加する */
@@ -181,12 +213,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   /**
    * プレイ内容を変更する操作の共通ガード。
-   * 決算処理中とゲーム終了後は状態を変更しない（終了後の再提案・購入などを防ぐ）。
+   * 決算処理中・緊急経営判断の待機中・ゲーム終了後は状態を変更しない（終了後の再提案・購入などを防ぐ）。
    */
   const updatePlayState = useCallback(
     (updater: (prev: GameState) => GameState) => {
       setState((prev) =>
-        advancingRef.current || prev.gameCompleted ? prev : updater(prev),
+        advancingRef.current || isPlayLocked(prev) ? prev : updater(prev),
       );
     },
     [],
@@ -233,7 +265,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
             researchSpend: result.researchSpend,
             unansweredCount: result.unansweredCount,
             unansweredPenalty: result.unansweredPenalty,
-            bankrupt: result.bankrupt,
+            interest: result.interest,
+            insolvency: result.insolvency,
+            loan: null,
+            bankrupt: false,
+            endReason: null,
             fundsBefore: current.availableFunds,
             fundsAfter: result.state.availableFunds,
             trustBefore: current.trustScore,
@@ -246,6 +282,49 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsAdvancing(false);
     }, SETTLEMENT_DELAY_MS);
   }, [state, router]);
+
+  const acceptEmergencyLoan = useCallback(() => {
+    if (advancingRef.current) return;
+    const current = stateRef.current;
+    const next = acceptLoanFor(current);
+    // 判断待ちでない・融資を受けられない場合（連打の 2 回目など）は何もしない
+    if (next === current) return;
+    stateRef.current = next;
+    setState(next);
+    setTurnResult((prev) =>
+      prev && {
+        ...prev,
+        toTurn: next.turn,
+        insolvency: null,
+        loan: next.loans.at(-1) ?? null,
+        fundsAfter: next.availableFunds,
+        trustAfter: next.trustScore,
+      },
+    );
+  }, []);
+
+  const declareBankruptcy = useCallback(() => {
+    if (advancingRef.current) return;
+    const current = stateRef.current;
+    const next = declareBankruptcyFor(current);
+    if (next === current) return;
+    stateRef.current = next;
+    setState(next);
+    setTurnResult((prev) =>
+      prev && {
+        ...prev,
+        insolvency: null,
+        bankrupt: true,
+        endReason: next.endReason,
+      },
+    );
+  }, []);
+
+  const dismissTurnResult = useCallback(() => {
+    // 緊急経営判断は、融資か倒産かを選ぶまで閉じられない
+    if (stateRef.current.pendingInsolvency) return;
+    setTurnResult(null);
+  }, []);
 
   const setTotalTurns = useCallback(
     (totalTurns: number) => {
@@ -290,6 +369,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           proposalsCompleted: [],
           gameCompleted: false,
           bankrupt: false,
+          endReason: null,
+          // 判断待ちは取り消す。借入は資金と同じく引き継ぐ
+          pendingInsolvency: null,
           demoOperated: true,
         };
       });
@@ -375,7 +457,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     () => getScenarioTurn(state.turn, state.mode),
     [state.turn, state.mode],
   );
-  const isLocked = isAdvancing || state.gameCompleted;
+  const isLocked = isAdvancing || isPlayLocked(state);
   const hasProposalThisTurn = turnData.requests.some((r) =>
     state.proposalsCompleted.includes(r.id),
   );
@@ -385,6 +467,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const canEndTurn = canEndTurnFor(state) && !isAdvancing;
   const isPlanLocked = isLocked || hasProposedThisTurn(state);
   const spendable = spendableFunds(state);
+  const debt = outstandingDebt(state);
+  const nextInterest = annualInterest(state);
+  const creditLeft = remainingCredit(state);
+  const loansLeft = remainingLoanCount(state);
 
   const value = useMemo<GameContextValue>(
     () => ({
@@ -396,7 +482,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       isLocked,
       advanceTurn,
       turnResult,
-      dismissTurnResult: () => setTurnResult(null),
+      dismissTurnResult,
+      acceptEmergencyLoan,
+      declareBankruptcy,
+      debt,
+      nextInterest,
+      creditLeft,
+      loansLeft,
       setTotalTurns,
       addTeam,
       removeTeam,
@@ -430,6 +522,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       isLocked,
       advanceTurn,
       turnResult,
+      dismissTurnResult,
+      acceptEmergencyLoan,
+      declareBankruptcy,
+      debt,
+      nextInterest,
+      creditLeft,
+      loansLeft,
       setTotalTurns,
       addTeam,
       removeTeam,

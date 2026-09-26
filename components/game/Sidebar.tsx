@@ -220,12 +220,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               state.bankrupt ? "text-rose-300" : "text-emerald-300"
             }`}
           >
-            {state.bankrupt ? "倒産によりゲーム終了" : "ゲーム終了"}
+            {!state.bankrupt
+              ? "ゲーム終了"
+              : state.endReason === "declined"
+                ? "自主倒産によりゲーム終了"
+                : state.endReason === "insolvent"
+                  ? "債務超過でゲーム終了"
+                  : "倒産によりゲーム終了"}
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-navy-200">
-            {state.bankrupt
-              ? `${state.turn}年目の決算で資金が尽きました`
-              : `${state.turn}年間のシミュレーションが完了しました`}
+            {!state.bankrupt
+              ? `${state.turn}年間のシミュレーションが完了しました`
+              : state.endReason === "declined"
+                ? `${state.turn}年目の決算で、融資を受けずに撤退しました`
+                : state.endReason === "denied"
+                  ? `${state.turn}年目の決算で、緊急融資の枠を使い切りました`
+                  : state.endReason === "insolvent"
+                    ? "最終年の借入返済後に、資金がマイナスになりました"
+                    : `${state.turn}年目の決算で資金が尽きました`}
           </p>
         </div>
       ) : (

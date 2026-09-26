@@ -1,3 +1,8 @@
+import {
+  annualInterest,
+  buildInsolvency,
+  outstandingDebt,
+} from "./loans";
 import { emptyPlan, planTotal, simulateMarketing } from "./marketing";
 import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
 import { researchSpendInTurn } from "./research";
@@ -5,7 +10,9 @@ import { evaluateSynergy, type SynergyResult } from "./synergy";
 import type {
   DealOutcome,
   GameState,
+  LoanRecord,
   MarketingOutcome,
+  PendingInsolvency,
   ShipownerRequest,
   TurnRecord,
   TurnSettlement,
@@ -71,7 +78,14 @@ export function hasProposedThisTurn(state: GameState): boolean {
  * 未回答の要求はペナルティ付きで見送れる。
  */
 export function canEndTurn(state: GameState): boolean {
-  return !state.gameCompleted && state.marketingCommitted;
+  return (
+    !state.gameCompleted && !state.pendingInsolvency && state.marketingCommitted
+  );
+}
+
+/** プレイ内容を変更する操作（提案・購入など）を受け付けない状態か（終了後・緊急経営判断の待機中） */
+export function isPlayLocked(state: GameState): boolean {
+  return state.gameCompleted || state.pendingInsolvency !== null;
 }
 
 export type AdvanceResult = {
@@ -90,9 +104,14 @@ export type AdvanceResult = {
   unansweredCount: number;
   /** 未回答による信頼度ペナルティの合計 */
   unansweredPenalty: number;
-  /** 決算の結果、倒産したか */
-  bankrupt: boolean;
-  /** 実際にターンが進んだ（または倒産で終了した）か */
+  /** この決算で支払った緊急融資の利息 */
+  interest: number;
+  /**
+   * 決算の結果、資金が不足した場合の緊急経営判断の内容（不足しなければ null）。
+   * この場合ターンは進まず、acceptEmergencyLoan / declareBankruptcy で決着させる。
+   */
+  insolvency: PendingInsolvency | null;
+  /** 決算が反映されたか（資金不足で判断待ちになった場合も true） */
   advanced: boolean;
 };
 
@@ -105,7 +124,7 @@ export function purchaseResearch(
   reportId: string,
   cost: number,
 ): GameState {
-  if (state.gameCompleted) return state;
+  if (isPlayLocked(state)) return state;
   const owned = state.researchPurchases.some((p) => p.reportId === reportId);
   if (owned || cost > spendableFunds(state)) return state;
 
@@ -141,7 +160,12 @@ function turnRecord(
   settlement: TurnSettlement | null,
   fundsEnd: number,
   trustEnd: number,
-  bankrupt: boolean,
+  finance: {
+    interestExpense: number;
+    repayment: number;
+    debtEnd: number;
+    bankrupt: boolean;
+  },
 ): TurnRecord {
   const start = yearStart(state);
   return {
@@ -161,8 +185,24 @@ function turnRecord(
     researchSpend: closing.researchSpend,
     unansweredRequestIds: closing.unanswered.map((r) => r.id),
     unansweredPenalty: closing.penalty,
-    bankrupt,
+    interestExpense: finance.interestExpense,
+    repayment: finance.repayment,
+    loan: null,
+    debtEnd: finance.debtEnd,
+    insolvency: null,
+    loanDenial: null,
+    bankrupt: finance.bankrupt,
   };
+}
+
+/** 直近の年の記録を書き換える（緊急経営判断の結果を反映する） */
+function patchLastRecord(
+  state: GameState,
+  patch: Partial<TurnRecord>,
+): TurnRecord[] {
+  return state.turnLog.map((log, i) =>
+    i === state.turnLog.length - 1 ? { ...log, ...patch } : log,
+  );
 }
 
 /** ターン終了時の共通処理：確定済み配分の実行と、未回答要求へのペナルティ */
@@ -203,14 +243,15 @@ function closeTurn(state: GameState) {
  * - 次ターンのデータに定義された決算（売上・固定費・信頼度）を、難易度の補正込みで適用する
  * - 確定済みのマーケティング予算を支出として差し引き、その効果を加える
  * - 未回答の船主要求には信頼度・関係性のペナルティを科す
- * - 決算後の資金がマイナスになった場合は倒産としてゲームを終了する
+ * - 緊急融資を受けている場合は、その利息を支払う
+ * - 決算後の資金がマイナスになった場合は、ターンを進めずに緊急経営判断（融資 / 自主倒産）の待機状態にする
  */
 export function advanceGameState(state: GameState): AdvanceResult {
   const closing = closeTurn(state);
   const { executedPlan, marketing, researchSpend } = closing;
 
-  // 最終ターン・終了済みのゲームではこれ以上進めない
-  if (state.gameCompleted || state.turn >= state.totalTurns) {
+  // 最終ターン・終了済み・判断待ちのゲームではこれ以上進めない
+  if (isPlayLocked(state) || state.turn >= state.totalTurns) {
     return {
       state,
       settlement: null,
@@ -218,7 +259,8 @@ export function advanceGameState(state: GameState): AdvanceResult {
       researchSpend,
       unansweredCount: closing.unanswered.length,
       unansweredPenalty: closing.penalty,
-      bankrupt: false,
+      interest: 0,
+      insolvency: null,
       advanced: false,
     };
   }
@@ -230,8 +272,9 @@ export function advanceGameState(state: GameState): AdvanceResult {
   const expense = settlement?.expense ?? 0;
   const trustDelta = settlement?.trustDelta ?? 0;
 
-  const funds = state.availableFunds + revenue - expense - marketing.spend;
-  const bankrupt = funds < 0;
+  const interest = annualInterest(state);
+  const funds =
+    state.availableFunds + revenue - expense - marketing.spend - interest;
   const trust = clampTrust(
     state.trustScore + trustDelta + marketing.trustDelta + closing.penalty,
   );
@@ -243,7 +286,12 @@ export function advanceGameState(state: GameState): AdvanceResult {
     relationshipDeltas: closing.relationshipDeltas,
     turnLog: [
       ...state.turnLog,
-      turnRecord(state, closing, settlement, funds, trust, bankrupt),
+      turnRecord(state, closing, settlement, funds, trust, {
+        interestExpense: interest,
+        repayment: 0,
+        debtEnd: outstandingDebt(state),
+        bankrupt: false,
+      }),
     ],
     marketingHistory: [
       ...state.marketingHistory,
@@ -258,14 +306,15 @@ export function advanceGameState(state: GameState): AdvanceResult {
     ],
   };
 
+  const insolvency = funds < 0 ? buildInsolvency(closed) : null;
+
   return {
-    state: bankrupt
-      ? // 倒産：ターンは進めず、その年を最後の年としてゲームを終了する
+    state: insolvency
+      ? // 資金不足：ターンは進めず、緊急経営判断を待つ
         {
           ...closed,
           marketingCommitted: false,
-          bankrupt: true,
-          gameCompleted: true,
+          pendingInsolvency: insolvency,
         }
       : {
           ...closed,
@@ -280,8 +329,81 @@ export function advanceGameState(state: GameState): AdvanceResult {
     researchSpend,
     unansweredCount: closing.unanswered.length,
     unansweredPenalty: closing.penalty,
-    bankrupt,
+    interest,
+    insolvency,
     advanced: true,
+  };
+}
+
+/**
+ * 緊急融資を受けて次の年へ進む純粋関数。
+ * 不足額 + 運転資金を資金に注入し、信頼度を下げ、融資を記録する。
+ * 判断待ちでない場合・融資を受けられない場合は状態を変更しない。
+ */
+export function acceptEmergencyLoan(state: GameState): GameState {
+  const pending = state.pendingInsolvency;
+  if (!pending?.offer || state.gameCompleted || pending.turn !== state.turn) {
+    return state;
+  }
+  const { offer } = pending;
+  const loan: LoanRecord = {
+    turn: pending.turn,
+    number: offer.number,
+    principal: offer.principal,
+    deficit: offer.deficit,
+    workingCapital: offer.workingCapital,
+    baseRate: offer.baseRate,
+    penaltyRate: offer.penaltyRate,
+    rate: offer.rate,
+    trustAtBorrow: offer.trustAtBorrow,
+    repaidTurn: null,
+  };
+  const funds = state.availableFunds + offer.principal;
+  const trust = clampTrust(state.trustScore + offer.trustPenalty);
+  const loans = [...state.loans, loan];
+
+  return {
+    ...state,
+    availableFunds: funds,
+    trustScore: trust,
+    loans,
+    pendingInsolvency: null,
+    // 翌年の年初は融資後の資金・信頼度から始まる
+    turnLog: patchLastRecord(state, {
+      fundsEnd: funds,
+      trustEnd: trust,
+      loan,
+      debtEnd: outstandingDebt({ ...state, loans }),
+      insolvency: "loan",
+    }),
+    turn: state.turn + 1,
+    marketingCommitted: false,
+    proposalsCompleted: [],
+  };
+}
+
+/**
+ * 融資を受けずに（または受けられずに）倒産としてゲームを終了する純粋関数。
+ * 従来の倒産と同じく、ターンは進めずその年を最後の年とする。
+ * 判断待ちでない場合は状態を変更しない。
+ */
+export function declareBankruptcy(state: GameState): GameState {
+  const pending = state.pendingInsolvency;
+  if (!pending || state.gameCompleted || pending.turn !== state.turn) {
+    return state;
+  }
+  const endReason = pending.offer ? "declined" : "denied";
+  return {
+    ...state,
+    pendingInsolvency: null,
+    bankrupt: true,
+    gameCompleted: true,
+    endReason,
+    turnLog: patchLastRecord(state, {
+      insolvency: endReason,
+      loanDenial: pending.denial,
+      bankrupt: true,
+    }),
   };
 }
 
@@ -296,14 +418,19 @@ export type FinalizeResult = {
  * 最終ターンを締めくくり、ゲームを完了状態にする純粋関数。
  * 次ターンのデータは存在しないため、決算（売上・固定費）は発生させず、
  * 確定済みのマーケティング予算の効果と、未回答要求へのペナルティのみを反映する。
+ * 緊急融資を受けている場合は、最終年の利息と元本を一括で支払う。
+ * 返済後の資金がマイナスなら債務超過（D 評価）として終了する（次の年がないため融資の判断はない）。
  * 終了後に同じ要求へ再提案できないよう、提案の完了状態は保持する。
  */
 export function finalizeGame(state: GameState): FinalizeResult {
   const closing = closeTurn(state);
   const { executedPlan, marketing } = closing;
-  if (state.gameCompleted) return { state, marketing };
+  if (isPlayLocked(state)) return { state, marketing };
 
-  const funds = state.availableFunds - marketing.spend;
+  const interest = annualInterest(state);
+  const repayment = outstandingDebt(state);
+  const funds = state.availableFunds - marketing.spend - interest - repayment;
+  const insolvent = funds < 0;
   const trust = clampTrust(
     state.trustScore + marketing.trustDelta + closing.penalty,
   );
@@ -316,8 +443,16 @@ export function finalizeGame(state: GameState): FinalizeResult {
       relationshipDeltas: closing.relationshipDeltas,
       turnLog: [
         ...state.turnLog,
-        turnRecord(state, closing, null, funds, trust, funds < 0),
+        turnRecord(state, closing, null, funds, trust, {
+          interestExpense: interest,
+          repayment,
+          debtEnd: 0,
+          bankrupt: insolvent,
+        }),
       ],
+      loans: state.loans.map((l) =>
+        l.repaidTurn === null ? { ...l, repaidTurn: state.turn } : l,
+      ),
       marketingCommitted: false,
       marketingHistory: [
         ...state.marketingHistory,
@@ -330,7 +465,8 @@ export function finalizeGame(state: GameState): FinalizeResult {
           revenue: 0,
         },
       ],
-      bankrupt: funds < 0,
+      bankrupt: insolvent,
+      endReason: insolvent ? "insolvent" : "completed",
       gameCompleted: true,
     },
     marketing,
@@ -359,7 +495,7 @@ export function resolveProposal(
   requestId: string,
   focusPriority: string,
 ): ProposalResolution | null {
-  if (state.gameCompleted || !state.marketingCommitted) return null;
+  if (isPlayLocked(state) || !state.marketingCommitted) return null;
   if (isAnswered(state, requestId)) return null;
 
   const request = getScenarioTurn(state.turn, state.mode).requests.find(

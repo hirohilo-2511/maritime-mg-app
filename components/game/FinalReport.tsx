@@ -18,6 +18,7 @@ import {
   S_RANK_MIN_PRIMARY_HIT,
   buildFinalReport,
   type Grade,
+  type LoanSummary,
 } from "@/lib/finalReport";
 import { company } from "@/lib/mock-data";
 import type { YearReview, YearVerdict } from "@/lib/yearlyReview";
@@ -53,9 +54,13 @@ export function FinalReport() {
         <div className="bg-navy-900 px-6 py-8 text-white sm:px-8">
           <p className="text-[10px] font-semibold tracking-widest text-navy-400">
             FINAL REPORT — {modeConfig.label} ·{" "}
-            {report.bankrupt
-              ? `${report.yearsPlayed}年目で倒産`
-              : `${report.yearsPlayed}年間のシミュレーション終了`}
+            {!report.bankrupt
+              ? `${report.yearsPlayed}年間のシミュレーション終了`
+              : report.endReason === "insolvent"
+                ? `${report.yearsPlayed}年目の返済後に債務超過`
+                : report.endReason === "declined"
+                  ? `${report.yearsPlayed}年目で自主倒産`
+                  : `${report.yearsPlayed}年目で倒産`}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-5">
             <span
@@ -153,6 +158,10 @@ export function FinalReport() {
           </div>
         </div>
       </Card>
+
+      {report.loanSummary ? (
+        <LoanSummarySection summary={report.loanSummary} />
+      ) : null}
 
       {/* 投資傾向の分析 */}
       <Card>
@@ -524,7 +533,11 @@ function YearlyReviewSection({ reviews }: { reviews: YearReview[] }) {
                       {y.turn}年目
                     </h3>
                     <Badge tone={verdictTone[y.verdict]}>
-                      {y.bankrupt ? "倒産" : y.verdictLabel}
+                      {y.bankrupt
+                        ? "倒産"
+                        : y.borrowed
+                          ? "緊急融資"
+                          : y.verdictLabel}
                     </Badge>
                   </div>
                   <p className="tabular text-[11px] text-navy-400">
@@ -627,11 +640,88 @@ function YearlyReviewSection({ reviews }: { reviews: YearReview[] }) {
                     )}
                   </div>
                 </div>
+
+                {y.notes.length > 0 ? (
+                  <ul className="mt-3 space-y-1.5">
+                    {y.notes.map((text) => (
+                      <li
+                        key={text}
+                        className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-800"
+                      >
+                        <Icon name="book" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             );
           })}
         </ol>
       )}
+    </Card>
+  );
+}
+
+/** 緊急融資を受けた場合の総括（借入・利息・返済） */
+function LoanSummarySection({ summary }: { summary: LoanSummary }) {
+  const { money } = useMoney();
+  const tiles = [
+    { label: "借入回数", value: `${summary.loans.length}回` },
+    { label: "借入総額", value: money(summary.totalBorrowed) },
+    { label: "支払利息の合計", value: money(summary.totalInterest), bad: true },
+    summary.outstanding > 0
+      ? { label: "未返済の元本", value: money(summary.outstanding), bad: true }
+      : { label: "一括返済した元本", value: money(summary.totalRepaid) },
+  ];
+
+  return (
+    <Card>
+      <CardHeader
+        title="借入と利息"
+        description="緊急融資で事業を続けた代償"
+        icon={<Icon name="wallet" className="h-5 w-5" />}
+        action={<Badge tone="warning">緊急融資</Badge>}
+      />
+      <CardBody>
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {tiles.map((t) => (
+            <div
+              key={t.label}
+              className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3 py-2"
+            >
+              <dt className="text-[10px] font-semibold tracking-wider text-navy-400">
+                {t.label}
+              </dt>
+              <dd
+                className={`tabular mt-0.5 text-[13px] font-bold ${
+                  t.bad ? "text-rose-600" : "text-navy-900"
+                }`}
+              >
+                {t.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <ul className="mt-3 space-y-1.5">
+          {summary.loans.map((l) => (
+            <li
+              key={l.number}
+              className="flex items-start gap-2 text-[12px] leading-relaxed text-navy-700"
+            >
+              <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              {l.turn}年目の決算：{money(l.principal)}（不足額 {money(l.deficit)} + 運転資金{" "}
+              {money(l.workingCapital)}）を年利 {Math.round(l.rate * 1000) / 10}%
+              で借入（信頼度 {l.trustAtBorrow} 時点
+              {l.penaltyRate > 0 ? "・2回目の上乗せ金利あり" : ""}）
+              {l.repaidTurn !== null ? ` → ${l.repaidTurn}年目に返済` : ""}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[11px] leading-relaxed text-navy-400">
+          最終資金は、元本の一括返済と利息の支払いを済ませた後の額です。
+        </p>
+      </CardBody>
     </Card>
   );
 }

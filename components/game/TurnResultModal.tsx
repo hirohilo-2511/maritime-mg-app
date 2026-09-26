@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { EmergencyDecision } from "@/components/game/EmergencyDecision";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
 
@@ -31,22 +32,62 @@ function Row({
   );
 }
 
+/** 倒産で終了した場合の見出しと説明 */
+function bankruptcyCopy(
+  endReason: string | null,
+  denial: string | null,
+  fromTurn: number,
+  funds: string,
+  maxLoans: number,
+): { title: string; body: string } {
+  if (endReason === "declined") {
+    return {
+      title: `${fromTurn}年目の決算で自主倒産しました`,
+      body: `決算後の資金が ${funds} となり、緊急融資を受けずに事業の継続を断念しました。ここでゲームは終了です。`,
+    };
+  }
+  if (endReason === "denied") {
+    return {
+      title: `${fromTurn}年目の決算で倒産しました`,
+      body: `決算後の資金が ${funds} となりましたが、${
+        denial === "countLimit"
+          ? `緊急融資はすでに上限の${maxLoans}回まで受けており`
+          : "残りの借入枠では不足額を賄えず"
+      }、事業を継続できなくなりました。ここでゲームは終了です。`,
+    };
+  }
+  return {
+    title: `${fromTurn}年目の決算で倒産しました`,
+    body: `決算後の資金が ${funds} となり、事業を継続できなくなりました。ここでゲームは終了です。`,
+  };
+}
+
 /**
  * ターン終了時の決算結果モーダル。
  * GameProvider の turnResult が入っているあいだ表示される。
+ * 資金不足の場合は、融資 / 自主倒産を選ぶまで閉じられない（緊急経営判断）。
  */
 export function TurnResultModal() {
-  const { state, turnResult, dismissTurnResult } = useGame();
+  const {
+    state,
+    modeConfig,
+    turnResult,
+    dismissTurnResult,
+    acceptEmergencyLoan,
+    declareBankruptcy,
+  } = useGame();
   const { money, moneySigned } = useMoney();
   const router = useRouter();
   const confirmRef = useRef<HTMLButtonElement>(null);
   const bankrupt = turnResult?.bankrupt ?? false;
+  const deciding = turnResult?.insolvency != null;
 
   // 倒産した場合は、モーダルを閉じると同時に最終レポートへ移動する
   const close = useCallback(() => {
+    if (deciding) return;
     dismissTurnResult();
     if (bankrupt) router.push("/final-report");
-  }, [bankrupt, dismissTurnResult, router]);
+  }, [bankrupt, deciding, dismissTurnResult, router]);
 
   // Escape で閉じる
   useEffect(() => {
@@ -69,12 +110,26 @@ export function TurnResultModal() {
     researchSpend,
     unansweredCount,
     unansweredPenalty,
+    interest,
+    insolvency,
+    loan,
+    endReason,
     fundsBefore,
     fundsAfter,
     trustBefore,
     trustAfter,
   } = turnResult;
-  const netIncome = settlement.revenue - settlement.expense - marketing.spend;
+  const netIncome =
+    settlement.revenue - settlement.expense - marketing.spend - interest;
+  const ended = bankrupt
+    ? bankruptcyCopy(
+        endReason,
+        state.turnLog.at(-1)?.loanDenial ?? null,
+        fromTurn,
+        money(fundsAfter),
+        modeConfig.emergencyLoan.maxLoans,
+      )
+    : null;
   // シナリオの決算説明（既存事業）に、この年の実際の提案結果を加える
   const proposalHighlights = state.proposalLog
     .filter((p) => p.turn === fromTurn)
@@ -103,17 +158,29 @@ export function TurnResultModal() {
         className="relative max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
       >
         {/* ヘッダー */}
-        {bankrupt ? (
+        {insolvency ? (
+          <div className="bg-amber-600 px-6 py-5 text-white">
+            <p className="text-[10px] font-semibold tracking-widest text-amber-100">
+              EMERGENCY DECISION
+            </p>
+            <h2 id="turn-result-title" className="mt-1 text-xl font-bold">
+              緊急経営判断：資金が {money(insolvency.deficit)} 不足しています
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-amber-50">
+              {fromTurn}年目の決算後の資金が {money(fundsAfter)}{" "}
+              となりました。緊急融資を受けて事業を続けるか、ここで自主倒産するかを決めてください。
+            </p>
+          </div>
+        ) : ended ? (
           <div className="bg-rose-700 px-6 py-5 text-white">
             <p className="text-[10px] font-semibold tracking-widest text-rose-200">
               BANKRUPTCY
             </p>
             <h2 id="turn-result-title" className="mt-1 text-xl font-bold">
-              {fromTurn}年目の決算で倒産しました
+              {ended.title}
             </h2>
             <p className="mt-1 text-sm leading-relaxed text-rose-100">
-              決算後の資金が {money(fundsAfter)}{" "}
-              となり、事業を継続できなくなりました。ここでゲームは終了です。
+              {ended.body}
             </p>
           </div>
         ) : (
@@ -151,6 +218,13 @@ export function TurnResultModal() {
               value={moneySigned(-marketing.spend)}
               tone={marketing.spend > 0 ? "negative" : "neutral"}
             />
+            {interest > 0 ? (
+              <Row
+                label="支払利息（緊急融資）"
+                value={moneySigned(-interest)}
+                tone="negative"
+              />
+            ) : null}
             <Row
               label="当期損益"
               value={moneySigned(netIncome)}
@@ -163,6 +237,17 @@ export function TurnResultModal() {
               <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               船主の要求 {unansweredCount}件に回答しなかったため、信頼度{" "}
               {unansweredPenalty} と関係性の悪化が生じました。
+            </p>
+          ) : null}
+
+          {loan ? (
+            <p className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-800">
+              <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              緊急融資 {money(loan.principal)}（不足額 {money(loan.deficit)} +
+              運転資金 {money(loan.workingCapital)}）を年利{" "}
+              {Math.round(loan.rate * 1000) / 10}% で借り入れました。信頼度{" "}
+              {modeConfig.emergencyLoan.trustPenalty}
+              。元本は最終年に一括で返済します。
             </p>
           ) : null}
 
@@ -247,15 +332,25 @@ export function TurnResultModal() {
         </div>
 
         <div className="border-t border-navy-100 px-6 py-4">
-          <Button
-            ref={confirmRef}
-            size="lg"
-            className="w-full"
-            onClick={close}
-          >
-            {bankrupt ? "最終レポートを見る" : `${toTurn}年目を開始する`}
-            <Icon name="arrowRight" className="h-4 w-4" />
-          </Button>
+          {insolvency ? (
+            <EmergencyDecision
+              pending={insolvency}
+              loanConfig={modeConfig.emergencyLoan}
+              totalTurns={state.totalTurns}
+              onAccept={acceptEmergencyLoan}
+              onDecline={declareBankruptcy}
+            />
+          ) : (
+            <Button
+              ref={confirmRef}
+              size="lg"
+              className="w-full"
+              onClick={close}
+            >
+              {bankrupt ? "最終レポートを見る" : `${toTurn}年目を開始する`}
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

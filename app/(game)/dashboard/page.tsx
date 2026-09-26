@@ -1,5 +1,6 @@
 "use client";
 
+import { LoanStatusCard } from "@/components/game/LoanStatusCard";
 import { MarketNewsCard } from "@/components/game/MarketNewsCard";
 import { ShipownerRequestsCard } from "@/components/game/ShipownerRequestsCard";
 import { useGame } from "@/components/game/GameProvider";
@@ -32,6 +33,9 @@ export default function DashboardPage() {
           {company.playerRole} — {turnData.headline}
         </p>
       </div>
+
+      {/* 緊急融資を受けているときだけ表示 */}
+      <LoanStatusCard />
 
       {/* メインコンテンツ：2カラム（モバイルでは縦積み） */}
       <div className="grid gap-6 xl:grid-cols-2">

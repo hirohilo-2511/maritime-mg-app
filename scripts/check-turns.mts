@@ -154,7 +154,7 @@ console.log(
   `信頼度98 + 決算6 + マーケ${maxOutcome.trustDelta} → ${clamped.state.trustScore}（100で上限クランプ）`,
 );
 console.log(
-  `資金500,000 で ${fmt(maxOutcome.spend)} 投資 → ${fmt(clamped.state.availableFunds)}（倒産=${clamped.bankrupt} / ターン ${clamped.state.turn}年目で終了）`,
+  `資金500,000 で ${fmt(maxOutcome.spend)} 投資 → ${fmt(clamped.state.availableFunds)}（資金不足=${clamped.insolvency !== null} / ${clamped.state.turn}年目で緊急経営判断へ）`,
 );
 
 // --- 5. 表示通貨の変換 ----------------------------------------------------

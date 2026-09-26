@@ -33,6 +33,8 @@ export default function MarketingBudgetPage() {
     updateMarketingPlan,
     commitMarketingPlan,
     skipMarketing,
+    debt,
+    nextInterest,
   } = useGame();
   const { money } = useMoney();
 
@@ -146,6 +148,16 @@ export default function MarketingBudgetPage() {
               <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
               配分合計が利用可能資金を{money(Math.abs(remaining))}
               超えています。確定するには配分を減らしてください。
+            </p>
+          ) : null}
+
+          {/* 緊急融資の利息・返済は予算の上限には含めず、判断はプレイヤーに任せる */}
+          {debt > 0 && !state.gameCompleted ? (
+            <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">
+              <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+              {isFinalTurn
+                ? `今年の締めで、緊急融資の利息 ${money(nextInterest)} と元本 ${money(debt)} を一括で支払います。返済後の資金がマイナスになると債務超過（D 評価）です。`
+                : `次の決算で、緊急融資の利息 ${money(nextInterest)} が差し引かれます（借入残高 ${money(debt)}）。配分後の残額が少ないと、再び資金不足になるおそれがあります。`}
             </p>
           ) : null}
 

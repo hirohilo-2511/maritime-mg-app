@@ -47,7 +47,48 @@ export type ModeConfig = {
   minSynergySpend: number;
   /** 最終レポートで B2B 指標（ROI・CPA など）を表示するか */
   showAdvancedMetrics: boolean;
+  /** 決算で資金がマイナスになったときの緊急融資の条件 */
+  emergencyLoan: EmergencyLoanConfig;
 };
+
+export type EmergencyLoanConfig = {
+  /** 不足額に上乗せする、翌年のマーケティング活動資金（USD） */
+  workingCapital: number;
+  /** 累計借入の上限（USD）。初期資金と同額 */
+  creditLimit: number;
+  /** 融資を受けられる回数の上限 */
+  maxLoans: number;
+  /** 2回目以降の融資に上乗せする金利（0–1） */
+  repeatLoanPenaltyRate: number;
+  /** 融資を受けたときの信頼度の変動（資金繰り悪化への市場・顧客の懸念） */
+  trustPenalty: number;
+};
+
+/**
+ * 緊急融資の金利表（信頼度が高いほど低金利）。上から順に判定する。
+ * 2回目以降はここに repeatLoanPenaltyRate が上乗せされる。
+ */
+export const LOAN_RATE_TABLE: { minTrust: number; rate: number }[] = [
+  { minTrust: 80, rate: 0.05 },
+  { minTrust: 60, rate: 0.08 },
+  { minTrust: 40, rate: 0.11 },
+  { minTrust: 30, rate: 0.15 },
+  { minTrust: 0, rate: 0.18 },
+];
+
+/** 信頼度で決まる融資の基本金利 */
+export function loanBaseRate(trust: number): number {
+  return (
+    LOAN_RATE_TABLE.find((row) => trust >= row.minTrust)?.rate ??
+    LOAN_RATE_TABLE[LOAN_RATE_TABLE.length - 1].rate
+  );
+}
+
+/**
+ * この金利以上での借入は、年次レビューで「実質的に破綻状態での延命措置」と注記する
+ * （金利表の上限。2回目の上乗せ後もこれ以上になる）
+ */
+export const DISTRESSED_LOAN_RATE = 0.18;
 
 export const modeConfigs: Record<GameMode, ModeConfig> = {
   intro: {
@@ -73,6 +114,13 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     minSynergyShare: 0.25,
     minSynergySpend: 0,
     showAdvancedMetrics: false,
+    emergencyLoan: {
+      workingCapital: 100_000,
+      creditLimit: initialGameState.availableFunds,
+      maxLoans: 2,
+      repeatLoanPenaltyRate: 0.05,
+      trustPenalty: -5,
+    },
   },
   advanced: {
     id: "advanced",
@@ -85,7 +133,7 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
       "船主の想定予算 −30%、決算の売上 −30%・固定費 +20%",
       "受注には対応チャネルへ配分の25%以上かつ $100,000 以上の投資が必要",
       "失注時の信頼度ペナルティ −12（未回答は −15）",
-      "決算後に資金がマイナスになると倒産",
+      "決算で資金が不足すると、緊急融資（最大2回・信頼度で金利が決まる）か自主倒産かを判断",
       "最終レポートで ROI・CPA などの B2B 指標と年次レビューを評価",
     ],
     initialFunds: 400_000,
@@ -99,6 +147,13 @@ export const modeConfigs: Record<GameMode, ModeConfig> = {
     minSynergyShare: 0.25,
     minSynergySpend: 100_000,
     showAdvancedMetrics: true,
+    emergencyLoan: {
+      workingCapital: 200_000,
+      creditLimit: 400_000,
+      maxLoans: 2,
+      repeatLoanPenaltyRate: 0.05,
+      trustPenalty: -5,
+    },
   },
 };
 
