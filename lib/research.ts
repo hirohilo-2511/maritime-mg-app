@@ -1,6 +1,6 @@
 import type { IconName } from "@/components/ui/Icon";
 import { getModeConfig } from "./modes";
-import type { GameState, ResearchPurchase } from "./types";
+import type { GameState, OverseasChoice, ResearchPurchase } from "./types";
 
 export type ResearchCategory = "demand" | "competitor" | "regulation";
 
@@ -33,6 +33,8 @@ export type ResearchReport = {
   data: ResearchDatum[];
   /** 購入後に見える示唆 */
   insights: ResearchInsight[];
+  /** 継続プレイで、この国に進出した場合にだけ買えるレポート */
+  overseas?: Exclude<OverseasChoice, "none">;
 };
 
 /** レポートの示唆 1 件。関係する船主がいれば、その船主の理解につながる */
@@ -324,10 +326,98 @@ export const researchReports: ResearchReport[] = [
       },
     ],
   },
+  {
+    id: "r-os-india",
+    category: "demand",
+    title: "インドの造船支援策と現地調達のルール",
+    provider: "現地コンサルティング会社",
+    teaser:
+      "国の造船支援策の対象と、外国メーカーに求められる現地調達の考え方。インドの船主・造船所の購買の傾向。",
+    cost: 50_000,
+    availableFrom: 7,
+    overseas: "india",
+    dataLabel: "購買で重く見られる項目（100 = 最重視）",
+    data: [
+      { label: "価格", value: 95, display: "95", caption: "相見積もりが前提" },
+      { label: "同型船での採用実績", value: 80, display: "80", caption: "大型計画の選定で重視" },
+      { label: "納期", value: 75, display: "75" },
+      { label: "燃費・技術", value: 50, display: "50", caption: "差がつきにくい" },
+    ],
+    insights: [
+      {
+        text: "沿岸海運は航路の拡大を急いでおり、価格の次に納期を見る。現地に窓口がない相手は候補から外される。",
+        customers: ["konkan"],
+      },
+      {
+        text: "造船所は、試験発注で問題がなかったメーカーを同型船で本採用する。大型の新造計画は、それまでの採用実績のある相手から声がかかる。",
+        customers: ["arabian"],
+      },
+    ],
+  },
+  {
+    id: "r-os-vietnam",
+    category: "competitor",
+    title: "ベトナム生産拠点の立ち上げ実務",
+    provider: "日系工業団地の運営会社",
+    teaser:
+      "第2工場の立ち上げで起きやすいつまずきと、周辺の造船所が部品メーカーに求めること。",
+    cost: 40_000,
+    availableFrom: 7,
+    overseas: "vietnam",
+    dataLabel: "立ち上げ初年度の生産性（本格稼働 = 100）",
+    data: [
+      { label: "1年目", value: 70, display: "70", caption: "品質を整える期間" },
+      { label: "2年目", value: 100, display: "100" },
+      { label: "3年目", value: 110, display: "110", caption: "人件費の差が効く" },
+    ],
+    insights: [
+      {
+        text: "近くの造船所は、建造の工程を止めないことを何より重く見る。納期の次に価格、そのあとに実績を見る。",
+        customers: ["saigon"],
+      },
+    ],
+  },
+  {
+    id: "r-os-china",
+    category: "regulation",
+    title: "中国市場の規制リスク",
+    provider: "国際法律事務所",
+    teaser:
+      "機器の輸出入に関わる規制の運用の動き。取引先ごとの支払い条件と、代金回収のリスク。",
+    cost: 60_000,
+    availableFrom: 7,
+    overseas: "china",
+    dataLabel: "取引の規制が変わる可能性（今後2年）",
+    data: [
+      { label: "手続きの厳格化", value: 70, display: "高い", caption: "9年目ごろに運用変更の兆し" },
+      { label: "代金の回収遅れ", value: 55, display: "中程度" },
+      { label: "取引の全面停止", value: 15, display: "低い" },
+    ],
+    insights: [
+      {
+        text: "規制の運用が変わる兆しがある。8年目のうちに前受金や保険で備えておけば、代金を回収できなくなる損失を半分に抑えられる。",
+        customers: [],
+      },
+      {
+        text: "造船所は地元メーカーとの相見積もりが前提。価格が最重視で、次に納期を見る。",
+        customers: ["yangtze"],
+      },
+      {
+        text: "海運会社は燃費改善で運航コストを下げたいが、まず価格で絞り込む。",
+        customers: ["eastchina"],
+      },
+    ],
+  },
 ];
 
 export function getReport(id: string): ResearchReport | undefined {
   return researchReports.find((r) => r.id === id);
+}
+
+/** その状態で画面に出すレポート（進出先のレポートは、その国に進出した場合だけ） */
+export function reportsFor(state: GameState): ResearchReport[] {
+  const overseas = state.continuation?.overseas;
+  return researchReports.filter((r) => !r.overseas || r.overseas === overseas);
 }
 
 /** 指定ターンで購入可能か（購入済みかどうかは別途判定） */
@@ -430,7 +520,7 @@ export function researchValidUntil(state: GameState, reportId: string): number |
 
 /** 今買えるレポートの数（未購入、または有効期限が切れて更新できるもの） */
 export function countBuyableReports(state: GameState): number {
-  return researchReports.filter(
+  return reportsFor(state).filter(
     (r) => isAvailable(r, state.turn) && !hasActiveReport(state, r.id),
   ).length;
 }

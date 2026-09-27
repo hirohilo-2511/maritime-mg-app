@@ -1,6 +1,13 @@
 import { buildB2bMetrics, type B2bMetrics } from "./b2bMetrics";
 import { getChannel, marketingChannels, type MarketingChannel } from "./marketing";
-import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
+import { getModeConfig } from "./modes";
+import {
+  CONTINUATION_START_TURN,
+  crisisStars,
+  scenarioTurn,
+  synergyRuleAt,
+  type CrisisStar,
+} from "./continuation";
 import { additionalSpendNeeded, channelForPriority } from "./synergy";
 import { outstandingDebt, remainingCredit } from "./loans";
 import { buildYearlyReview, type YearReview } from "./yearlyReview";
@@ -10,6 +17,7 @@ import type {
   GameState,
   LoanRecord,
   MarketingChannelId,
+  PartOneSummary,
 } from "./types";
 
 /** D は倒産（自主倒産・融資を受けられず倒産・最終年の債務超過）による終了 */
@@ -69,6 +77,16 @@ export type FinalReportData = {
   b2bMetrics: B2bMetrics | null;
   /** 実践編のみ：年ごとの良かった点・改善点 */
   yearlyReview: YearReview[] | null;
+  /** 評価の対象にした最初の年（第1部は 1、継続プレイの第2部は 6） */
+  fromTurn: number;
+  /** 継続プレイ：第1部の成績（第1部のみのプレイでは null） */
+  partOne: PartOneSummary | null;
+  /** 継続プレイ：危機対応力（参考表示） */
+  crisisStars: CrisisStar[] | null;
+  /** 継続プレイ：10年間の資金と信頼度の推移（年末の値） */
+  history: { turn: number; funds: number; trust: number }[] | null;
+  /** S 評価の条件（第1部と第2部で異なる） */
+  sRank: SRankRule;
 };
 
 /**
@@ -82,19 +100,45 @@ export const S_RANK_MIN_TRUST = 95;
 export const S_RANK_MIN_FUNDS_RATIO = 1.3;
 export const S_RANK_MIN_PRIMARY_HIT = 0.8;
 
+export type SRankRule = { trust: number; fundsRatio: number; hitRate: number };
+
+/** 第1部（1〜5年目）の S 評価の条件 */
+export const PART_ONE_S_RANK: SRankRule = {
+  trust: S_RANK_MIN_TRUST,
+  fundsRatio: S_RANK_MIN_FUNDS_RATIO,
+  hitRate: S_RANK_MIN_PRIMARY_HIT,
+};
+
+/**
+ * 継続プレイ（第2部 6〜10年目）の S 評価の条件。
+ * 最終資金は基準資金（6年目の開始時の資金）に対する割合。
+ * 不況で要求が少なく訴求ラインも厳しいため、第1優先的中率は 70% にする。
+ */
+export const PART_TWO_S_RANK: SRankRule = {
+  trust: 90,
+  fundsRatio: 1.3,
+  hitRate: 0.7,
+};
+
+/** 第2部の A〜C の合成指標で、資金の伸びを頭打ちにする倍率 */
+const PART_TWO_FUNDS_RATIO_CAP = 2;
+
 /**
  * 第1優先的中率。プレイした各年に提示された要求のうち、
  * 船主の第1優先を訴求して受注できた件数の割合（未回答・失注は外れ扱い）。
  */
-export function primaryHitRate(state: GameState): number {
+export function primaryHitRate(state: GameState, fromTurn = 1): number {
   let offered = 0;
-  for (let turn = 1; turn <= state.turn; turn++) {
-    offered += getScenarioTurn(turn, state.mode).requests.length;
+  const mainIds = new Set<string>();
+  for (let turn = fromTurn; turn <= state.turn; turn++) {
+    const requests = scenarioTurn(state, turn).requests;
+    offered += requests.length;
+    for (const r of requests) mainIds.add(r.id);
   }
   if (offered === 0) return 0;
-  // 追加案件は上積みの扱いのため、本案件だけで数える
+  // 追加案件・別枠の要求は上積みの扱いのため、本案件だけで数える
   const hits = state.proposalLog.filter(
-    (p) => p.won && p.priorityRank === 0 && !p.extra,
+    (p) => p.won && p.priorityRank === 0 && mainIds.has(p.requestId),
   ).length;
   return Math.min(1, hits / offered);
 }
@@ -104,11 +148,12 @@ function meetsSRank(
   fundsRatio: number,
   finalTrust: number,
   hitRate: number,
+  rule: SRankRule,
 ): boolean {
   return (
-    finalTrust >= S_RANK_MIN_TRUST &&
-    fundsRatio >= S_RANK_MIN_FUNDS_RATIO &&
-    hitRate >= S_RANK_MIN_PRIMARY_HIT
+    finalTrust >= rule.trust &&
+    fundsRatio >= rule.fundsRatio &&
+    hitRate >= rule.hitRate
   );
 }
 
@@ -124,16 +169,29 @@ function meetsSRank(
  */
 const FUNDS_RATIO_CAP = 3;
 
-function gradeFor(
+export function gradeFor(
   fundsRatio: number,
   finalTrust: number,
   hitRate: number,
   bankrupt: boolean,
+  partTwo = false,
 ): Grade {
   if (bankrupt) return "D";
-  if (meetsSRank(fundsRatio, finalTrust, hitRate)) return "S";
+  if (
+    meetsSRank(
+      fundsRatio,
+      finalTrust,
+      hitRate,
+      partTwo ? PART_TWO_S_RANK : PART_ONE_S_RANK,
+    )
+  ) {
+    return "S";
+  }
 
-  const composite = Math.min(fundsRatio, FUNDS_RATIO_CAP) * 20 + finalTrust;
+  // 第2部は基準資金に対する伸びで見る（2倍で頭打ち。資金 1.25 倍・信頼度 90 で A の目安）
+  const composite = partTwo
+    ? Math.min(fundsRatio, PART_TWO_FUNDS_RATIO_CAP) * 40 + finalTrust
+    : Math.min(fundsRatio, FUNDS_RATIO_CAP) * 20 + finalTrust;
   if (composite >= 140) return "A";
   if (composite >= 100) return "B";
   return "C";
@@ -144,7 +202,20 @@ function gradeTagline(
   years: number,
   endReason: EndReason | null,
   borrowed: boolean,
+  partTwo = false,
 ): string {
+  if (partTwo && grade !== "D") {
+    switch (grade) {
+      case "S":
+        return "工場停止と大不況が重なった危機から、見事に立て直しました。顧客の信頼を守りながら、基準資金を大きく上回るところまで会社を伸ばしています。";
+      case "A":
+        return "危機をしっかり乗り越え、資金・信頼度ともに立て直せています。守りと攻めの切り替えが的確でした。";
+      case "B":
+        return "危機を乗り越えることはできましたが、立て直しの勢いには伸びしろがあります。どこで守り、どこで攻めるかを振り返ってみましょう。";
+      default:
+        return "危機の傷が残ったまま5年間を終えました。資金・信頼度のいずれか、あるいは両方が危機の前に戻りきっていません。";
+    }
+  }
   switch (grade) {
     case "S":
       return borrowed
@@ -204,18 +275,20 @@ function loanNote(summary: LoanSummary | null, grade: Grade): string {
 /** 倒産時の評価理由。資金繰りの観点から何が起きたかを説明する */
 function buildBankruptcyReason(state: GameState): string {
   const cfg = getModeConfig(state.mode);
-  const history = state.marketingHistory;
+  const fromTurn = state.continuation ? CONTINUATION_START_TURN : 1;
+  const history = state.marketingHistory.filter((h) => h.turn >= fromTurn);
   const marketingSpend = history.reduce((sum, h) => sum + h.spend, 0);
-  const researchSpend = state.researchPurchases.reduce(
-    (sum, p) => sum + p.cost,
-    0,
-  );
-  const outcomes = Object.values(state.dealOutcomes).filter(
-    (o) => o !== "declined",
-  );
+  const researchSpend = state.researchPurchases
+    .filter((p) => p.turn >= fromTurn)
+    .reduce((sum, p) => sum + p.cost, 0);
+  const outcomes = state.proposalLog
+    .filter((p) => p.turn >= fromTurn)
+    .map((p) => (p.won ? "won" : "lost"));
   const won = outcomes.filter((o) => o === "won").length;
   const last = state.turnLog.at(-1);
-  const funds = `${usd(state.availableFunds)}（初期資金 ${usd(cfg.initialFunds)}）`;
+  const funds = state.continuation
+    ? `${usd(state.availableFunds)}（基準資金 ${usd(state.continuation.baseFunds)}）`
+    : `${usd(state.availableFunds)}（初期資金 ${usd(cfg.initialFunds)}）`;
 
   let opening: string;
   switch (state.endReason) {
@@ -243,6 +316,10 @@ function buildBankruptcyReason(state: GameState): string {
   )}、市場調査費は${usd(researchSpend)}で、提案${outcomes.length}件のうち受注は${won}件でした。B2B では受注額が入る前に固定費と販促費が出ていくため、「当たる投資」に絞れないまま支出を続けると資金繰りが先に行き詰まります。${
     cfg.minSynergySpend > 0
       ? `${cfg.label}では対応チャネルへ${usd(cfg.minSynergySpend)}以上の投資が受注条件になるため、資金が細るほど受注が遠のく悪循環に注意が必要です。`
+      : ""
+  }${
+    state.continuation
+      ? "危機の年は売上が落ちても固定費は減りません。守るべき関係と、削ってよい支出を見極めることが立て直しの出発点です。"
       : ""
   }`;
 }
@@ -279,6 +356,8 @@ function buildEvaluationReason(
   ratio: number,
   finalTrust: number,
   hitRate: number,
+  rule: SRankRule,
+  baseLabel: string,
 ): string {
   const fundsPct = Math.round(ratio * 100);
   const fTier = fundsTier(ratio);
@@ -291,10 +370,10 @@ function buildEvaluationReason(
     poor: `信頼度スコアは${finalTrust}点と低調な水準です`,
   };
   const fundsPhrase: Record<PerformanceTier, string> = {
-    excellent: `一方、最終資金は初期資金比${fundsPct}%まで大きく伸び、投資は十分に回収できています`,
-    good: `一方、最終資金は初期資金比${fundsPct}%まで着実に増加しました`,
-    flat: `一方、最終資金は初期資金比${fundsPct}%とほぼ横ばいで、投資額に見合った増加には至っていません`,
-    poor: `一方、最終資金は初期資金比${fundsPct}%まで落ち込み、投資額に対して利益が伴っていません`,
+    excellent: `一方、最終資金は${baseLabel}比${fundsPct}%まで大きく伸び、投資は十分に回収できています`,
+    good: `一方、最終資金は${baseLabel}比${fundsPct}%まで着実に増加しました`,
+    flat: `一方、最終資金は${baseLabel}比${fundsPct}%とほぼ横ばいで、投資額に見合った増加には至っていません`,
+    poor: `一方、最終資金は${baseLabel}比${fundsPct}%まで落ち込み、投資額に対して利益が伴っていません`,
   };
 
   let verdict: string;
@@ -317,6 +396,8 @@ function buildEvaluationReason(
     ratio,
     finalTrust,
     hitRate,
+    rule,
+    baseLabel,
   )}`;
 }
 
@@ -326,30 +407,30 @@ function sRankNote(
   ratio: number,
   finalTrust: number,
   hitRate: number,
+  rule: SRankRule,
+  baseLabel: string,
 ): string {
-  const condition = `信頼度${S_RANK_MIN_TRUST}以上・最終資金が初期資金比${Math.round(
-    S_RANK_MIN_FUNDS_RATIO * 100,
-  )}%以上・第1優先的中率${Math.round(S_RANK_MIN_PRIMARY_HIT * 100)}%以上`;
+  const condition = `信頼度${rule.trust}以上・最終資金が${baseLabel}比${Math.round(
+    rule.fundsRatio * 100,
+  )}%以上・第1優先的中率${Math.round(rule.hitRate * 100)}%以上`;
   if (grade === "S") {
     return `S評価の条件（${condition}）をすべて満たしました。`;
   }
 
   const gaps: string[] = [];
-  if (finalTrust < S_RANK_MIN_TRUST) {
-    gaps.push(`信頼度があと${S_RANK_MIN_TRUST - finalTrust}点`);
+  if (finalTrust < rule.trust) {
+    gaps.push(`信頼度があと${rule.trust - finalTrust}点`);
   }
-  if (ratio < S_RANK_MIN_FUNDS_RATIO) {
+  if (ratio < rule.fundsRatio) {
     gaps.push(
-      `最終資金があと初期資金比${Math.ceil(
-        (S_RANK_MIN_FUNDS_RATIO - ratio) * 100,
+      `最終資金があと${baseLabel}比${Math.ceil(
+        (rule.fundsRatio - ratio) * 100,
       )}ポイント`,
     );
   }
-  if (hitRate < S_RANK_MIN_PRIMARY_HIT) {
+  if (hitRate < rule.hitRate) {
     gaps.push(
-      `第1優先的中率があと${Math.ceil(
-        (S_RANK_MIN_PRIMARY_HIT - hitRate) * 100,
-      )}ポイント`,
+      `第1優先的中率があと${Math.ceil((rule.hitRate - hitRate) * 100)}ポイント`,
     );
   }
   return `なお、S評価には${condition}のすべてが必要です（今回は${gaps.join("、")}不足）。`;
@@ -383,6 +464,11 @@ const styleCopy: Record<
     label: "短期受注重視型",
     describe: (p) =>
       `マーケティング投資の${p}%をデジタル施策に配分し、低コストで引き合い件数を稼ぐ短期成果重視の戦略でした。`,
+  },
+  localPartner: {
+    label: "海外開拓型",
+    describe: (p) =>
+      `マーケティング投資の${p}%を現地パートナーに投じ、進出先での足場づくりを優先しました。`,
   },
 };
 
@@ -419,7 +505,7 @@ function buildStyle(
  * 最も取りこぼしの大きかった案件（未回答・失注・第1優先以外での受注）を選び、
  * シナジー判定と同じ対応表（訴求ポイント → チャネル）に基づいて、どうすれば満額だったかを示す。
  */
-function buildIfStory(state: GameState): string {
+function buildIfStory(state: GameState, fromTurn: number): string {
   const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
   if (state.turnLog.length === 0 && state.proposalLog.length === 0) {
     return "ターンを一度も終えていないため、『もしも』を語る材料がありません。次にプレイする際は、まず1年目の予算配分と提案から着手してみてください。";
@@ -427,10 +513,10 @@ function buildIfStory(state: GameState): string {
 
   type Miss = { turn: number; owner: string; budget: number; loss: number; primary: string; detail: string };
   const misses: Miss[] = [];
-  const rule = synergyRuleFor(state.mode);
-  for (let turn = 1; turn <= state.turn; turn++) {
+  for (let turn = fromTurn; turn <= state.turn; turn++) {
     const plan = state.marketingHistory.find((h) => h.turn === turn)?.plan;
-    for (const req of getScenarioTurn(turn, state.mode).requests) {
+    const rule = synergyRuleAt(state, turn);
+    for (const req of scenarioTurn(state, turn).requests) {
       const p = state.proposalLog.find((x) => x.requestId === req.id);
       const answeredInTime =
         p ||
@@ -443,7 +529,12 @@ function buildIfStory(state: GameState): string {
       const primary = req.priorities[0];
       const channel = channelForPriority(primary);
       const needed = plan
-        ? additionalSpendNeeded(plan, channel, rule.minShare, rule.minSpend)
+        ? additionalSpendNeeded(
+            plan,
+            channel,
+            rule.channelMinShare?.[channel] ?? rule.minShare,
+            rule.minSpend,
+          )
         : 0;
       const how =
         needed > 0
@@ -490,24 +581,23 @@ function buildBusinessHint(state: GameState): string {
 
 /** 最終ターン終了後の状態から、総合フィードバック画面のデータを組み立てる */
 export function buildFinalReport(state: GameState): FinalReportData {
-  const totalMarketingSpend = state.marketingHistory.reduce(
-    (sum, h) => sum + h.spend,
-    0,
-  );
-  const totalLeads = state.marketingHistory.reduce(
-    (sum, h) => sum + h.leads,
-    0,
-  );
+  const cont = state.continuation;
+  // 継続プレイでは、第2部（6〜10年目）を評価の対象にする
+  const fromTurn = cont ? CONTINUATION_START_TURN : 1;
+  const history = state.marketingHistory.filter((h) => h.turn >= fromTurn);
+  const totalMarketingSpend = history.reduce((sum, h) => sum + h.spend, 0);
+  const totalLeads = history.reduce((sum, h) => sum + h.leads, 0);
 
-  const channelBreakdown: ChannelBreakdown[] = marketingChannels.map(
-    (channel) => {
-      const amount = state.marketingHistory.reduce(
-        (sum, h) => sum + h.plan[channel.id],
+  const channelBreakdown: ChannelBreakdown[] = marketingChannels
+    .map((channel) => {
+      const amount = history.reduce(
+        (sum, h) => sum + (h.plan[channel.id] ?? 0),
         0,
       );
       return { channel, amount, share: 0 };
-    },
-  );
+    })
+    // 海外向けの施策は、実際に使った場合だけ並べる
+    .filter((c) => !c.channel.overseasOnly || c.amount > 0);
   const totalChannelSpend = channelBreakdown.reduce(
     (sum, c) => sum + c.amount,
     0,
@@ -517,20 +607,24 @@ export function buildFinalReport(state: GameState): FinalReportData {
   }
 
   const cfg = getModeConfig(state.mode);
-  const fundsRatio = state.availableFunds / cfg.initialFunds;
-  const hitRate = primaryHitRate(state);
+  const initialFunds = cont ? cont.baseFunds : cfg.initialFunds;
+  const baseLabel = cont ? "基準資金" : "初期資金";
+  const sRank = cont ? PART_TWO_S_RANK : PART_ONE_S_RANK;
+  const fundsRatio = state.availableFunds / initialFunds;
+  const hitRate = primaryHitRate(state, fromTurn);
   const grade = gradeFor(
     fundsRatio,
     state.trustScore,
     hitRate,
     state.bankrupt,
+    cont !== null,
   );
   const style = buildStyle(channelBreakdown, state.trustScore);
   const loanSummary = buildLoanSummary(state);
 
   return {
     mode: state.mode,
-    yearsPlayed: state.turn,
+    yearsPlayed: state.turn - fromTurn + 1,
     bankrupt: state.bankrupt,
     endReason: state.endReason,
     loanSummary,
@@ -541,6 +635,7 @@ export function buildFinalReport(state: GameState): FinalReportData {
       state.turn,
       state.endReason,
       loanSummary !== null,
+      cont !== null,
     ),
     evaluationReason: state.bankrupt
       ? buildBankruptcyReason(state)
@@ -549,20 +644,35 @@ export function buildFinalReport(state: GameState): FinalReportData {
           fundsRatio,
           state.trustScore,
           hitRate,
+          sRank,
+          baseLabel,
         )}${loanNote(loanSummary, grade)}`,
     primaryHitRate: hitRate,
     finalFunds: state.availableFunds,
-    initialFunds: cfg.initialFunds,
-    fundsDelta: state.availableFunds - cfg.initialFunds,
+    initialFunds,
+    fundsDelta: state.availableFunds - initialFunds,
     finalTrust: state.trustScore,
     totalLeads,
     totalMarketingSpend,
     channelBreakdown: channelBreakdown.sort((a, b) => b.amount - a.amount),
     styleLabel: style.label,
     styleCommentary: style.commentary,
-    ifStory: buildIfStory(state),
+    ifStory: buildIfStory(state, fromTurn),
     businessHint: buildBusinessHint(state),
-    b2bMetrics: cfg.showAdvancedMetrics ? buildB2bMetrics(state) : null,
-    yearlyReview: cfg.showAdvancedMetrics ? buildYearlyReview(state) : null,
+    b2bMetrics: cfg.showAdvancedMetrics ? buildB2bMetrics(state, fromTurn) : null,
+    yearlyReview: cfg.showAdvancedMetrics
+      ? buildYearlyReview(state, fromTurn)
+      : null,
+    fromTurn,
+    partOne: cont?.partOne ?? null,
+    crisisStars: crisisStars(state),
+    history: cont
+      ? state.turnLog.map((t) => ({
+          turn: t.turn,
+          funds: t.fundsEnd,
+          trust: t.trustEnd,
+        }))
+      : null,
+    sRank,
   };
 }

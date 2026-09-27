@@ -1,15 +1,23 @@
 import { ASSUMED_GROSS_MARGIN } from "./b2bMetrics";
 import { getChannel } from "./marketing";
+import { DISTRESSED_LOAN_RATE } from "./modes";
 import {
-  DISTRESSED_LOAN_RATE,
-  getModeConfig,
-  getScenarioTurn,
-  synergyRuleFor,
-} from "./modes";
+  RELATIONSHIP_KEEP_SPEND,
+  baseRevenue,
+  fixedCost,
+  loanConfigFor,
+  overseasOptions,
+  recoveryNotice,
+  repairOptions,
+  scenarioTurn,
+  synergyRuleAt,
+} from "./continuation";
+import { planAmount } from "./marketing";
 import {
   additionalSpendNeeded,
   channelForPriority,
   priorityRewardRate,
+  shareLabel,
 } from "./synergy";
 import { findExtraRequest } from "./extraRequests";
 import type { GameState, MarketingPlan, ProposalRecord } from "./types";
@@ -77,9 +85,14 @@ function describeMiss(
 ): string {
   const primaryChannel = channelForPriority(primary);
   const primaryName = getChannel(primaryChannel).name;
-  const rule = synergyRuleFor(state.mode);
+  const rule = synergyRuleAt(state, p.turn);
   const needed = plan
-    ? additionalSpendNeeded(plan, primaryChannel, rule.minShare, rule.minSpend)
+    ? additionalSpendNeeded(
+        plan,
+        primaryChannel,
+        rule.channelMinShare?.[primaryChannel] ?? rule.minShare,
+        rule.minSpend,
+      )
     : 0;
   const route =
     needed > 0
@@ -88,14 +101,16 @@ function describeMiss(
   return `${route}、満額${usd(p.requestBudget)}の受注を狙えました。`;
 }
 
-export function buildYearlyReview(state: GameState): YearReview[] {
-  return state.turnLog.map((log) => {
+export function buildYearlyReview(state: GameState, fromTurn = 1): YearReview[] {
+  return state.turnLog.filter((log) => log.turn >= fromTurn).map((log) => {
     const turn = log.turn;
-    // 本案件に、その年に届いた追加案件を加える
+    // 本案件（と別枠の要求）に、その年に届いた追加案件を加える
+    const data = scenarioTurn(state, turn);
     const requests = [
-      ...getScenarioTurn(turn, state.mode).requests,
+      ...data.requests,
+      ...(data.sideRequests ?? []),
       ...(log.extraRequestIds ?? []).flatMap((id) => {
-        const found = findExtraRequest(state.mode, id);
+        const found = findExtraRequest(state, id);
         return found ? [found.request] : [];
       }),
     ];
@@ -108,6 +123,12 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       const p = proposals.find((x) => x.requestId === req.id);
       const primary = req.priorities[0];
 
+      if (!p && state.dealOutcomes[req.id] === "declined" && req.declineOnly) {
+        bads.push(
+          `${req.owner}（想定予算 ${usd(req.budget)}）の海外造船所向けの要求は、現地に拠点がないため辞退するしかありませんでした。`,
+        );
+        continue;
+      }
       if (!p && state.dealOutcomes[req.id] === "declined") {
         const channelName = getChannel(channelForPriority(primary)).name;
         bads.push(
@@ -143,14 +164,17 @@ export function buildYearlyReview(state: GameState): YearReview[] {
           )}（${usd(lost)}の取りこぼし）。${describeMiss(p, primary, plan, state)}`,
         );
       } else {
+        const rule = synergyRuleAt(state, turn);
         const why =
-          p.reason === "underinvested"
-            ? `${channelName}への投資${usd(p.channelSpend)}が最低条件${usd(
-                synergyRuleFor(state.mode).minSpend,
-              )}に届かず`
-            : `${channelName}が配分全体の${pct(p.channelShare)}で、条件の4分の1（${pct(
-                synergyRuleFor(state.mode).minShare,
-              )}）に届かず`;
+          p.reason === "noPartner"
+            ? "現地パートナーへの投資が足りず"
+            : p.reason === "underinvested"
+              ? `${channelName}への投資${usd(p.channelSpend)}が最低条件${usd(
+                  rule.minSpend,
+                )}に届かず`
+              : `${channelName}が配分全体の${pct(p.channelShare)}で、条件の${shareLabel(
+                  rule.channelMinShare?.[p.requiredChannel] ?? rule.minShare,
+                )}（${pct(rule.channelMinShare?.[p.requiredChannel] ?? rule.minShare)}）に届かず`;
         bads.push(
           `${req.extra ? `${req.owner}（追加案件）` : req.owner}：「${p.focusPriority}」で提案したものの、${why}失注しました（あと${usd(
             p.shortfall,
@@ -161,9 +185,19 @@ export function buildYearlyReview(state: GameState): YearReview[] {
 
     // どの受注の裏付けにもならなかった投資
     if (plan && log.marketingSpend > 0) {
-      const used = new Set(
+      const used = new Set<keyof MarketingPlan>(
         proposals.filter((p) => p.won).map((p) => p.requiredChannel),
       );
+      // 継続プレイ：不況の年の営業訪問は関係維持に、現地パートナーは進出先の受注に使われている
+      if (state.continuation && turn >= 6) {
+        if (turn <= 8 && planAmount(plan, "fieldSales") >= RELATIONSHIP_KEEP_SPEND) {
+          used.add("fieldSales");
+        }
+        const partnerWin = proposals.some(
+          (p) => p.won && requests.find((r) => r.id === p.requestId)?.requiresLocalPartner,
+        );
+        if (partnerWin) used.add("localPartner");
+      }
       const idle = (Object.keys(plan) as (keyof MarketingPlan)[]).filter(
         (id) => plan[id] > 0 && !used.has(id),
       );
@@ -177,6 +211,14 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       }
     } else if (log.marketingSpend === 0 && requests.length > 0) {
       bads.push("マーケティング投資を見送ったため、提案に裏付けを持たせられませんでした。");
+    }
+
+    // 継続プレイの年：危機への判断・進出先・関係維持の振り返り
+    const cont = state.continuation;
+    if (cont && turn >= 6) {
+      const lines = continuationLines(state, turn, plan);
+      goods.push(...lines.goods);
+      bads.push(...lines.bads);
     }
 
     const investment = log.marketingSpend + log.researchSpend;
@@ -236,7 +278,7 @@ export function buildYearlyReview(state: GameState): YearReview[] {
               )}を加算）`
             : `（信頼度${loan.trustAtBorrow}による金利）`
         }。資金繰りの悪化で信頼度も${
-          getModeConfig(state.mode).emergencyLoan.trustPenalty
+          loanConfigFor(state).trustPenalty
         }下がっています。`,
       );
       if (loan.rate >= DISTRESSED_LOAN_RATE) {
@@ -298,4 +340,109 @@ export function buildYearlyReview(state: GameState): YearReview[] {
       bankrupt: log.bankrupt,
     };
   });
+}
+
+/** 継続プレイの年ならではの振り返り（設計書 9-3） */
+function continuationLines(
+  state: GameState,
+  turn: number,
+  plan: MarketingPlan | null,
+): { goods: string[]; bads: string[] } {
+  const cont = state.continuation!;
+  const goods: string[] = [];
+  const bads: string[] = [];
+
+  if (turn === 6) {
+    if (cont.repair) {
+      const cost = cont.specialSpend[6] ?? 0;
+      (cont.repair === "renew" ? goods : bads).push(
+        cont.repair === "renew"
+          ? `工場は設備を新しくする判断をしました（${usd(cost)}）。7年目以降の生産能力が上がり、回復期の売上を底上げしました。`
+          : `工場は応急修理で費用を${usd(cost)}に抑えました。${repairOptions.patch.summary}という代償があります。`,
+      );
+    }
+    if (cont.costCut) {
+      const saved = [6, 7, 8].reduce(
+        (sum, t) => sum + fixedCost({ ...cont, costCut: false }, t) - fixedCost(cont, t),
+        0,
+      );
+      const notice = recoveryNotice(state);
+      const missed = notice?.missedAmount ?? 0;
+      bads.push(
+        `経費削減で、3年間の固定費を合計${usd(saved)}抑えました。一方で、サポート体制の縮小が船主に伝わり、9年目の優先案件（合計${usd(missed)}）を逃しました。${
+          saved >= missed
+            ? "今回は削減が資金を守る結果になりました。"
+            : "目先の節約が、回復期の稼ぎを削る結果になりました。"
+        }`,
+      );
+    }
+    const overflow = cont.overflow;
+    if (overflow) {
+      if (overflow.choice === "delay") {
+        goods.push(
+          `生産能力を超えた受注${usd(overflow.amount)}は、正直に伝えて納期を延ばしてもらいました。信頼の傷を最小限に抑えています。`,
+        );
+      } else if (overflow.choice === "silent") {
+        bads.push(
+          `生産能力を超えた受注${usd(overflow.amount)}を黙って引き受けたため、7年目に${overflow.owners.join("・")}との関係性が15下がりました。`,
+        );
+      } else {
+        bads.push(
+          `生産能力を超えた受注${usd(overflow.amount)}は他社の工場に作ってもらい、受注額の4割を手放しました。`,
+        );
+      }
+    }
+  }
+
+  if (turn === 7 && cont.overseas) {
+    if (cont.overseas === "none") {
+      const declined = [8, 9, 10].filter((t) => t <= state.turn).length;
+      const lost = [9, 10]
+        .filter((t) => t <= state.turn)
+        .reduce(
+          (sum, t) => sum + baseRevenue({ ...cont, overseas: "india" }, t) - baseRevenue(cont, t),
+          0,
+        );
+      bads.push(
+        `海外に進出しなかったため、進出費用はかからず、規制などのリスクもありませんでした。一方で、海外造船所向けの要求${declined}件を辞退するしかなく、9・10年目は国内縮小で本業の売上が合計${usd(lost)}減りました。`,
+      );
+    } else {
+      goods.push(
+        `${overseasOptions[cont.overseas].label}への進出を決め、${usd(
+          cont.specialSpend[7] ?? 0,
+        )}を投じました（${overseasOptions[cont.overseas].tagline}）。`,
+      );
+    }
+  }
+
+  if (turn <= 8 && plan) {
+    if (planAmount(plan, "fieldSales") >= RELATIONSHIP_KEEP_SPEND) {
+      goods.push("不況の中でも営業訪問を続け、既存船主との関係を保ちました。");
+    } else {
+      bads.push(
+        `営業訪問（${usd(RELATIONSHIP_KEEP_SPEND)}以上）がなく、不況で発注を絞る船主との関係性が一律に5下がりました。`,
+      );
+    }
+  }
+
+  if (turn === 9) {
+    const delivered = cont.recoveryOwners ?? [];
+    if (delivered.length > 0) {
+      goods.push(
+        `不況の間も関係を保ったため、${delivered.join("・")}から回復期の優先案件が届きました。`,
+      );
+    }
+    if (cont.overseas === "china" && (cont.chinaLoss ?? 0) > 0) {
+      const prepared = state.researchPurchases.some(
+        (p) => p.reportId === "r-os-china" && p.turn <= 8,
+      );
+      (prepared ? goods : bads).push(
+        prepared
+          ? `中国の規制リスク調査で前もって備えていたため、規制の変更による損失は${usd(cont.chinaLoss ?? 0)}に抑えられました。`
+          : `中国の規制の変更で${usd(cont.chinaLoss ?? 0)}を回収できませんでした。中国の規制リスク調査を8年目までに買っていれば、損失は半分で済みました。`,
+      );
+    }
+  }
+
+  return { goods, bads };
 }

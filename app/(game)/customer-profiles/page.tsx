@@ -9,13 +9,15 @@ import { Icon } from "@/components/ui/Icon";
 import {
   currentRelationship,
   customerDeals,
-  customers,
   ownCapability,
   shortfallAxes,
+  visibleCustomers,
 } from "@/lib/customers";
 
 export default function CustomerProfilesPage() {
   const { state, turnData } = useGame();
+  // 進出先の船主・造船所は、継続プレイでその国に進出した場合だけ並べる
+  const customers = useMemo(() => visibleCustomers(state), [state]);
   const [selectedId, setSelectedId] = useState(customers[0].id);
 
   const capability = useMemo(() => ownCapability(state), [state]);

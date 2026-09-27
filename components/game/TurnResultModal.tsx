@@ -8,6 +8,7 @@ import { EmergencyDecision } from "@/components/game/EmergencyDecision";
 import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
 import { requestsForTurn } from "@/lib/extraRequests";
+import { loanConfigFor } from "@/lib/continuation";
 
 /** 決算明細の 1 行 */
 function Row({
@@ -71,7 +72,6 @@ function bankruptcyCopy(
 export function TurnResultModal() {
   const {
     state,
-    modeConfig,
     turnResult,
     dismissTurnResult,
     acceptEmergencyLoan,
@@ -128,7 +128,7 @@ export function TurnResultModal() {
         state.turnLog.at(-1)?.loanDenial ?? null,
         fromTurn,
         money(fundsAfter),
-        modeConfig.emergencyLoan.maxLoans,
+        loanConfigFor(state).maxLoans,
       )
     : null;
   // シナリオの決算説明（既存事業）に、この年の実際の提案結果を加える
@@ -149,8 +149,14 @@ export function TurnResultModal() {
     .concat(
       requestsForTurn(state, fromTurn)
         .filter((r) => r.extra && !(r.id in state.dealOutcomes))
-        .map((r) => `${r.owner} からの追加案件は期限切れ（ペナルティなし）`),
+        .map((r) =>
+          r.tag === "回復期の優先案件"
+            ? `${r.owner} からの回復期の優先案件は期限切れ（ペナルティなし）`
+            : `${r.owner} からの追加案件は期限切れ（ペナルティなし）`,
+        ),
     );
+  // 継続プレイ：年初に支払った修理費・進出費（決算の外で支払い済み）
+  const specialSpend = state.continuation?.specialSpend[fromTurn] ?? 0;
   // クランプ後の実際の変動量を表示する
   const trustDelta = trustAfter - trustBefore;
 
@@ -257,11 +263,17 @@ export function TurnResultModal() {
               緊急融資 {money(loan.principal)}（不足額 {money(loan.deficit)} +
               運転資金 {money(loan.workingCapital)}）を年利{" "}
               {Math.round(loan.rate * 1000) / 10}% で借り入れました。信頼度{" "}
-              {modeConfig.emergencyLoan.trustPenalty}
+              {loanConfigFor(state).trustPenalty}
               。元本は最終年に一括で返済します。
             </p>
           ) : null}
 
+          {specialSpend > 0 ? (
+            <p className="mt-1 text-[11px] text-navy-400">
+              ※ {fromTurn === 6 ? "工場の修理費" : "海外進出の費用"} {money(specialSpend)}{" "}
+              は年初に支払い済みのため、上記には含まれていません。
+            </p>
+          ) : null}
           {researchSpend > 0 ? (
             <p className="mt-1 text-[11px] text-navy-400">
               ※ 市場調査費 {money(researchSpend)}{" "}
@@ -346,7 +358,7 @@ export function TurnResultModal() {
           {insolvency ? (
             <EmergencyDecision
               pending={insolvency}
-              loanConfig={modeConfig.emergencyLoan}
+              loanConfig={loanConfigFor(state)}
               totalTurns={state.totalTurns}
               onAccept={acceptEmergencyLoan}
               onDecline={declareBankruptcy}

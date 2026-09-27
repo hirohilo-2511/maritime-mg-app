@@ -25,6 +25,8 @@ export function ChannelBudgetRow({
   minSpend,
   disabled = false,
   onChange,
+  shareText = "4分の1",
+  note,
 }: {
   channel: MarketingChannel;
   amount: number;
@@ -38,12 +40,18 @@ export function ChannelBudgetRow({
   /** 提案済み・ゲーム終了後など、配分を変更できない状態 */
   disabled?: boolean;
   onChange: (amount: number) => void;
+  /** 訴求ラインの配分比の読み方（「4分の1」「3分の1」） */
+  shareText?: string;
+  /** 施策の下に添える注意（関係維持ラインなど） */
+  note?: string;
 }) {
   const { money } = useMoney();
   const ratio = channel.max > 0 ? (amount / channel.max) * 100 : 0;
   const axisLabel =
     fitAxes.find((a) => a.id === axisForChannel(channel.id))?.label ?? "";
   const hints = prioritiesForChannel(channel.id);
+  // 現地パートナーは訴求ポイントの裏付けではなく、進出先の案件の必須条件
+  const partner = channel.overseasOnly === true;
   // 他の配分をそのままにしたとき、訴求ラインに届く位置（上限を超える場合は表示しない）
   const lineReachable = status.lineAmount <= channel.max;
   const linePos = (status.lineAmount / channel.max) * 100;
@@ -70,17 +78,32 @@ export function ChannelBudgetRow({
             {channel.description}
           </p>
           {/* どの要求の裏付けになるかのヒント */}
-          <p
-            className="mt-1.5 inline-flex flex-wrap items-center gap-1 rounded-md bg-sea-500/10 px-2 py-0.5 text-[11px] text-sea-600"
-            title={`裏付けになる重視項目：${hints.join("・")}`}
-          >
-            <Icon name="check" className="h-3 w-3" />
-            <span className="font-semibold">{axisLabel}の裏付け</span>
-            <span className="text-navy-500">
-              （{hints.slice(0, HINT_PRIORITIES).join("・")}
-              {hints.length > HINT_PRIORITIES ? " など" : ""}）
-            </span>
-          </p>
+          {partner ? (
+            <p className="mt-1.5 inline-flex flex-wrap items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-700">
+              <Icon name="check" className="h-3 w-3" />
+              <span className="font-semibold">進出先の案件の必須条件</span>
+              <span className="text-navy-500">
+                （{money(status.lineAmount)} 以上。訴求ポイントの裏付けは別の施策で）
+              </span>
+            </p>
+          ) : (
+            <p
+              className="mt-1.5 inline-flex flex-wrap items-center gap-1 rounded-md bg-sea-500/10 px-2 py-0.5 text-[11px] text-sea-600"
+              title={`裏付けになる重視項目：${hints.join("・")}`}
+            >
+              <Icon name="check" className="h-3 w-3" />
+              <span className="font-semibold">{axisLabel}の裏付け</span>
+              <span className="text-navy-500">
+                （{hints.slice(0, HINT_PRIORITIES).join("・")}
+                {hints.length > HINT_PRIORITIES ? " など" : ""}）
+              </span>
+            </p>
+          )}
+          {note ? (
+            <p className="mt-1 text-[11px] leading-relaxed font-semibold text-amber-700">
+              {note}
+            </p>
+          ) : null}
 
           {/* スライダー */}
           <div className="mt-3">
@@ -113,7 +136,7 @@ export function ChannelBudgetRow({
               <span>$0</span>
               {lineReachable && !disabled ? (
                 <span className="text-emerald-600">
-                  訴求ライン {money(status.lineAmount)}
+                  {partner ? "必須ライン" : "訴求ライン"} {money(status.lineAmount)}
                 </span>
               ) : null}
               <span>上限 {money(channel.max)}</span>
@@ -133,13 +156,17 @@ export function ChannelBudgetRow({
                   ) : (
                     <Icon name="alert" className="h-3 w-3" />
                   )}
-                  {status.qualifies
-                    ? `全体の${Math.round(share * 100)}% · 訴求ライン到達`
-                    : status.reason === "underinvested"
-                      ? `${money(minSpend)} 未満のため裏付けにならない（あと ${money(status.needed)}）`
-                      : lineReachable
-                        ? `全体の${Math.round(share * 100)}% · 4分の1に未達（あと ${money(status.needed)}、または他を減らす）`
-                        : `全体の${Math.round(share * 100)}% · 他の施策を減らさないと4分の1に届かない`}
+                  {partner
+                    ? status.qualifies
+                      ? "進出先の案件に提案できる"
+                      : `あと ${money(status.needed)} で進出先の案件に提案できる`
+                    : status.qualifies
+                      ? `全体の${Math.round(share * 100)}% · 訴求ライン到達`
+                      : status.reason === "underinvested"
+                        ? `${money(minSpend)} 未満のため裏付けにならない（あと ${money(status.needed)}）`
+                        : lineReachable
+                          ? `全体の${Math.round(share * 100)}% · ${shareText}に未達（あと ${money(status.needed)}、または他を減らす）`
+                          : `全体の${Math.round(share * 100)}% · 他の施策を減らさないと${shareText}に届かない`}
                 </Badge>
                 <Badge tone="info">見込み引き合い {effect.leads}件</Badge>
                 <Badge tone="positive">信頼度 +{effect.trustDelta}</Badge>

@@ -58,6 +58,60 @@ export type GameState = {
   demoOperated: boolean;
   /** セッションに参加しているチーム名 */
   teams: string[];
+  /**
+   * 実践編の継続プレイ（第2部 6〜10年目）の状態。第1部のみのプレイでは null。
+   * 危機への判断・進出先・基準資金など、6年目以降のシナリオを決める情報を持つ。
+   */
+  continuation: Continuation | null;
+};
+
+/** 継続プレイの企業規模（基準資金で決まる）。中堅 / 大手 / 業界大手 */
+export type CompanySize = "mid" | "large" | "major";
+
+/** 6年目の判断①：工場の直し方。応急修理 / 設備を新しくする */
+export type RepairChoice = "patch" | "renew";
+
+/** 6年目の判断③：作りきれない分の扱い。他社に委託 / 正直に納期延長 / 黙って遅れる */
+export type OverflowChoice = "outsource" | "delay" | "silent";
+
+/** 7年目の海外進出先 */
+export type OverseasChoice = "india" | "vietnam" | "china" | "none";
+
+/** 第1部（1〜5年目）の成績。継続プレイの最終レポートに残す */
+export type PartOneSummary = {
+  grade: "S" | "A" | "B" | "C" | "D";
+  finalFunds: number;
+  finalTrust: number;
+  primaryHitRate: number;
+};
+
+/** 継続プレイ（第2部）の状態 */
+export type Continuation = {
+  /** 基準資金 K（6年目の開始時の資金）。第2部の金額の多くはこれに対する割合で決まる */
+  baseFunds: number;
+  size: CompanySize;
+  /** 第2部に入る直前（5年目の終了時）の信頼度 */
+  trustAtStart: number;
+  partOne: PartOneSummary;
+  /** 6年目の判断（未選択は null） */
+  repair: RepairChoice | null;
+  costCut: boolean | null;
+  /** 6年目の年末に、生産能力の枠を超えた受注をどう扱ったか */
+  overflow: { choice: OverflowChoice; amount: number; owners: string[] } | null;
+  /** 7年目に選んだ進出先（未選択は null） */
+  overseas: OverseasChoice | null;
+  /** 修理費・進出費として支払った額（年 → 額） */
+  specialSpend: Record<number, number>;
+  /** 8年目の終わりに関係性 70 以上を保っていた既存船主（9年目の開始時に記録） */
+  keptOwners: string[] | null;
+  /** 9年目に「回復期の優先案件」を出した船主（9年目の開始時に記録） */
+  recoveryOwners: string[] | null;
+  /** 10年目にインドの大型案件が届くか（10年目の開始時に記録） */
+  indiaBigDeal: boolean | null;
+  /** 9年目の中国の規制変更による特別損失（9年目の締めで記録） */
+  chinaLoss: number | null;
+  /** 確認済みのお知らせ（年初の説明画面）の年 */
+  noticesSeen: number[];
 };
 
 /**
@@ -72,6 +126,8 @@ export type LoanDenial = "countLimit" | "creditLimit";
 
 /** 緊急融資 1 件の記録。金利は借入時に固定する */
 export type LoanRecord = {
+  /** 企業規模による金利の引き下げ（継続プレイのみ。0–1） */
+  discountRate?: number;
   /** 資金不足になった決算の年（この年の締めで借り入れた） */
   turn: number;
   /** 何回目の融資か（1 始まり） */
@@ -181,10 +237,12 @@ export type ProposalRecord = {
   /** そのチャネルへの投資額と配分比 */
   channelSpend: number;
   channelShare: number;
-  reason: "match" | "lowShare" | "underinvested";
+  reason: "match" | "lowShare" | "underinvested" | "noPartner";
   won: boolean;
   /** 受注額（失注時は 0） */
   revenue: number;
+  /** 生産能力の枠を超え、すぐには入金されなかった額（継続プレイの6年目のみ） */
+  held?: number;
   /** 信頼度の変動 */
   trustDelta: number;
   /** 受注に追加で必要だった投資額（受注時は 0） */
@@ -208,7 +266,8 @@ export type MarketingChannelId =
   | "tradePress"
   | "seminar"
   | "fieldSales"
-  | "digital";
+  | "digital"
+  | "localPartner";
 
 /** チャネルごとの予算配分（USD） */
 export type MarketingPlan = Record<MarketingChannelId, number>;
@@ -289,6 +348,14 @@ export type ShipownerRequest = {
    * 回答しなくてもペナルティはなく（期限切れ）、第1優先的中率の計算にも含めない。
    */
   extra?: boolean;
+  /** 案件の種類を示す短いラベル（継続プレイ：「インド」「海外造船所向け」など） */
+  tag?: string;
+  /** 受注に「現地パートナー」への一定額以上の投資が必要か（継続プレイの進出先の案件） */
+  requiresLocalPartner?: boolean;
+  /** 提案できず、辞退しか選べない理由（現地に拠点がない場合など） */
+  declineOnly?: string;
+  /** 海外（進出先・海外造船所向け）の案件か。危機対応力の評価に使う */
+  overseas?: boolean;
 };
 
 /** ターン終了時に確定する決算結果 */
@@ -310,6 +377,11 @@ export type TurnData = {
   headline: string;
   news: MarketNews[];
   requests: ShipownerRequest[];
+  /**
+   * 本案件とは別枠の要求（継続プレイ：進出先の案件・海外造船所向けの要求）。
+   * 回答しないとペナルティがあるが、第1優先的中率には含めない。
+   */
+  sideRequests?: ShipownerRequest[];
   /**
    * このターンに入るときに適用される前ターンの決算。
    * 1年目は開始時点なので null。

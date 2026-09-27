@@ -7,7 +7,16 @@ import {
   outstandingDebt,
 } from "./loans";
 import { emptyPlan, planTotal, simulateMarketing } from "./marketing";
-import { getModeConfig, getScenarioTurn, synergyRuleFor } from "./modes";
+import { getModeConfig, getScenarioTurn } from "./modes";
+import {
+  closeContinuationYear,
+  isContinuationTurn,
+  meetsLocalPartner,
+  pendingDecision,
+  scenarioTurn,
+  splitByCapacity,
+  synergyRuleAt,
+} from "./continuation";
 import { researchSpendInTurn } from "./research";
 import { evaluateSynergy, type SynergyResult } from "./synergy";
 import type {
@@ -46,11 +55,12 @@ export function isAnswered(state: GameState, requestId: string): boolean {
 }
 
 /**
- * 現在のターンで、まだ回答していない船主要求（本案件のみ）。
+ * 現在のターンで、まだ回答していない船主要求（本案件と、継続プレイの別枠の要求）。
  * 追加案件は回答しなくてもペナルティがない（期限切れ）ため含めない。
  */
 export function unansweredRequests(state: GameState): ShipownerRequest[] {
-  return getScenarioTurn(state.turn, state.mode).requests.filter(
+  const data = scenarioTurn(state);
+  return [...data.requests, ...(data.sideRequests ?? [])].filter(
     (r) => !isAnswered(state, r.id),
   );
 }
@@ -80,7 +90,11 @@ export function spendableFunds(state: GameState): number {
  * 終了後・緊急経営判断の待機中も変更できない。
  */
 export function canEditPlan(state: GameState): boolean {
-  return !isPlayLocked(state) && !state.marketingCommitted;
+  return (
+    !isPlayLocked(state) &&
+    !state.marketingCommitted &&
+    pendingDecision(state) === null
+  );
 }
 
 /** 今ターン、船主への提案を 1 件以上行ったか */
@@ -95,7 +109,10 @@ export function hasProposedThisTurn(state: GameState): boolean {
  */
 export function canEndTurn(state: GameState): boolean {
   return (
-    !state.gameCompleted && !state.pendingInsolvency && state.marketingCommitted
+    !state.gameCompleted &&
+    !state.pendingInsolvency &&
+    state.marketingCommitted &&
+    pendingDecision(state) === null
   );
 }
 
@@ -288,7 +305,12 @@ export function advanceGameState(state: GameState): AdvanceResult {
   }
 
   const toTurn = state.turn + 1;
-  const settlement = getScenarioTurn(toTurn, state.mode).settlement;
+  // 継続プレイの年は、その年の決算を基準資金と判断の結果から計算する
+  const contClosing = isContinuationTurn(state)
+    ? closeContinuationYear(state, executedPlan, closing.relationshipDeltas)
+    : null;
+  const settlement =
+    contClosing?.settlement ?? getScenarioTurn(toTurn, state.mode).settlement;
 
   const revenue = settlement?.revenue ?? 0;
   const expense = settlement?.expense ?? 0;
@@ -305,7 +327,9 @@ export function advanceGameState(state: GameState): AdvanceResult {
     ...state,
     availableFunds: funds,
     trustScore: trust,
-    relationshipDeltas: closing.relationshipDeltas,
+    relationshipDeltas:
+      contClosing?.relationshipDeltas ?? closing.relationshipDeltas,
+    continuation: contClosing?.continuation ?? state.continuation,
     turnLog: [
       ...state.turnLog,
       turnRecord(state, closing, settlement, funds, trust, {
@@ -369,6 +393,7 @@ export function acceptEmergencyLoan(state: GameState): GameState {
   }
   const { offer } = pending;
   const loan: LoanRecord = {
+    ...(offer.discountRate ? { discountRate: offer.discountRate } : {}),
     turn: pending.turn,
     number: offer.number,
     principal: offer.principal,
@@ -432,6 +457,8 @@ export function declareBankruptcy(state: GameState): GameState {
 export type FinalizeResult = {
   /** 最終ターン終了後の状態（gameCompleted: true） */
   state: GameState;
+  /** 継続プレイの最終年の決算（第1部の最終年は null） */
+  settlement: TurnSettlement | null;
   /** 最終ターンで実行されたマーケティング投資の結果 */
   marketing: MarketingOutcome;
 };
@@ -447,14 +474,28 @@ export type FinalizeResult = {
 export function finalizeGame(state: GameState): FinalizeResult {
   const closing = closeTurn(state);
   const { executedPlan, marketing } = closing;
-  if (isPlayLocked(state)) return { state, marketing };
+  if (isPlayLocked(state)) return { state, marketing, settlement: null };
 
+  // 継続プレイの最終年（10年目）は、その年の決算も締めに含める
+  const contClosing = isContinuationTurn(state)
+    ? closeContinuationYear(state, executedPlan, closing.relationshipDeltas)
+    : null;
+  const settlement = contClosing?.settlement ?? null;
   const interest = annualInterest(state);
   const repayment = outstandingDebt(state);
-  const funds = state.availableFunds - marketing.spend - interest - repayment;
+  const funds =
+    state.availableFunds +
+    (settlement?.revenue ?? 0) -
+    (settlement?.expense ?? 0) -
+    marketing.spend -
+    interest -
+    repayment;
   const insolvent = funds < 0;
   const trust = clampTrust(
-    state.trustScore + marketing.trustDelta + closing.penalty,
+    state.trustScore +
+      (settlement?.trustDelta ?? 0) +
+      marketing.trustDelta +
+      closing.penalty,
   );
 
   return {
@@ -462,10 +503,12 @@ export function finalizeGame(state: GameState): FinalizeResult {
       ...state,
       availableFunds: funds,
       trustScore: trust,
-      relationshipDeltas: closing.relationshipDeltas,
+      relationshipDeltas:
+        contClosing?.relationshipDeltas ?? closing.relationshipDeltas,
+      continuation: contClosing?.continuation ?? state.continuation,
       turnLog: [
         ...state.turnLog,
-        turnRecord(state, closing, null, funds, trust, {
+        turnRecord(state, closing, settlement, funds, trust, {
           interestExpense: interest,
           repayment,
           debtEnd: 0,
@@ -484,7 +527,7 @@ export function finalizeGame(state: GameState): FinalizeResult {
           spend: marketing.spend,
           leads: marketing.leads,
           trustDelta: marketing.trustDelta,
-          revenue: 0,
+          revenue: settlement?.revenue ?? 0,
         },
       ],
       bankrupt: insolvent,
@@ -492,6 +535,7 @@ export function finalizeGame(state: GameState): FinalizeResult {
       gameCompleted: true,
     },
     marketing,
+    settlement,
   };
 }
 
@@ -534,6 +578,8 @@ export type ProposalResolution = {
   trustDelta: number;
   /** 市場調査で船主を理解していたことによる信頼度の上乗せ（受注時のみ） */
   researchBonus: number;
+  /** 生産能力の枠を超え、すぐには入金されなかった額（継続プレイの6年目のみ） */
+  held: number;
 };
 
 /**
@@ -551,13 +597,22 @@ export function resolveProposal(
   const request = requestsForTurn(state).find((r) => r.id === requestId);
   if (!request) return null;
 
+  if (request.declineOnly) return null;
+
   const cfg = getModeConfig(state.mode);
-  const synergy = evaluateSynergy(
+  const evaluated = evaluateSynergy(
     focusPriority,
     request.priorities,
     state.marketingPlan,
-    synergyRuleFor(state.mode),
+    synergyRuleAt(state),
   );
+  // 進出先の案件は、現地パートナーへの投資がなければ裏付けがあっても受注できない
+  const synergy: SynergyResult =
+    evaluated.won &&
+    request.requiresLocalPartner &&
+    !meetsLocalPartner(state.marketingPlan)
+      ? { ...evaluated, won: false, reason: "noPartner", shortfall: 0 }
+      : evaluated;
   const outcome: DealOutcome = synergy.won ? "won" : "lost";
   // 受注額と信頼度の上昇は、船主の重視順位に応じて目減りする
   // 関係する市場調査を購入済みの船主から受注すると、顧客理解が伝わり信頼度が上乗せされる
@@ -571,6 +626,8 @@ export function resolveProposal(
   const revenue = synergy.won
     ? Math.round(request.budget * synergy.rewardRate)
     : 0;
+  // 継続プレイの6年目は、生産能力の枠を超えた分がすぐには入金されない
+  const { now: paidNow, held } = splitByCapacity(state, revenue);
 
   return {
     state: {
@@ -595,9 +652,10 @@ export function resolveProposal(
           trustDelta,
           shortfall: synergy.shortfall,
           extra: request.extra ?? false,
+          ...(held > 0 ? { held } : {}),
         },
       ],
-      availableFunds: state.availableFunds + revenue,
+      availableFunds: state.availableFunds + paidNow,
       trustScore: clampTrust(state.trustScore + trustDelta),
       relationshipDeltas: addRelationship(
         state.relationshipDeltas,
@@ -610,5 +668,6 @@ export function resolveProposal(
     revenue,
     trustDelta,
     researchBonus,
+    held,
   };
 }

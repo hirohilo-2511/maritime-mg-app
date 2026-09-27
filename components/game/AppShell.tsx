@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/game/Sidebar";
 import { TopHeader } from "@/components/game/TopHeader";
 import { TurnResultModal } from "@/components/game/TurnResultModal";
+import { ContinuationModals } from "@/components/game/ContinuationModals";
 import { navItems, secondaryNavItems } from "@/lib/nav";
 
 /**
@@ -55,6 +56,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* ターン終了時の決算モーダル */}
       <TurnResultModal />
+      {/* 継続プレイ（6〜10年目）の判断・お知らせ */}
+      <ContinuationModals />
     </div>
   );
 }

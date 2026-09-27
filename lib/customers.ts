@@ -1,7 +1,8 @@
-import { getModeConfig, getScenarioTurn } from "./modes";
+import { getModeConfig } from "./modes";
 import { extraRequestsFor, findExtraRequest } from "./extraRequests";
+import { scenarioTurn } from "./continuation";
 import { activePurchases, researchedCustomerIds } from "./research";
-import type { GameState, ProposalRecord } from "./types";
+import type { GameState, OverseasChoice, ProposalRecord } from "./types";
 
 /** 評価軸（期待水準と提供力を同じ 0–100 スケールで比較する） */
 export type FitAxisId = "price" | "delivery" | "fuel" | "support" | "record";
@@ -28,6 +29,8 @@ export type Customer = {
   decisionMaker: { name: string; role: string; note: string };
   /** 船主が求める水準 */
   expectations: FitScores;
+  /** 継続プレイで、この国に進出した場合にだけ現れる相手 */
+  overseas?: Exclude<OverseasChoice, "none">;
 };
 
 /**
@@ -160,7 +163,94 @@ export const customers: Customer[] = [
       record: 85,
     },
   },
+  {
+    id: "konkan",
+    name: "Konkan Coastal Lines",
+    region: "インド / ムンバイ",
+    segment: "沿岸海運（インド）",
+    relationship: 30,
+    overseas: "india",
+    fleet: [
+      { type: "沿岸コンテナ船", count: 12, avgAge: 14 },
+      { type: "沿岸タンカー", count: 5, avgAge: 16 },
+    ],
+    decisionMaker: {
+      name: "Mr. Rahul Deshmukh",
+      role: "Director, Fleet",
+      note: "国内航路の拡大を急いでおり、価格と納期に厳しい。現地に窓口があるかを必ず確認する。",
+    },
+    expectations: { price: 90, delivery: 85, fuel: 55, support: 70, record: 60 },
+  },
+  {
+    id: "arabian",
+    name: "Arabian Sea Shipbuilding",
+    region: "インド / グジャラート",
+    segment: "造船所（インド）",
+    relationship: 25,
+    overseas: "india",
+    fleet: [{ type: "建造中の船", count: 9, avgAge: 0 }],
+    decisionMaker: {
+      name: "Ms. Priya Nair",
+      role: "Head of Procurement",
+      note: "国の支援策を受けた建造が中心。現地で作る部品の比率と、同型船での採用実績を重く見る。",
+    },
+    expectations: { price: 95, delivery: 80, fuel: 60, support: 60, record: 85 },
+  },
+  {
+    id: "saigon",
+    name: "Saigon Coastal Shipyard",
+    region: "ベトナム / バリア・ブンタウ",
+    segment: "造船所（ベトナム）",
+    relationship: 35,
+    overseas: "vietnam",
+    fleet: [{ type: "建造中の船", count: 6, avgAge: 0 }],
+    decisionMaker: {
+      name: "Mr. Nguyen Van Minh",
+      role: "Production Manager",
+      note: "建造の工程に遅れを出さないことが最優先。近くに工場があるメーカーを好む。",
+    },
+    expectations: { price: 80, delivery: 95, fuel: 55, support: 65, record: 70 },
+  },
+  {
+    id: "yangtze",
+    name: "Yangtze Delta Shipbuilding",
+    region: "中国 / 江蘇",
+    segment: "造船所（中国）",
+    relationship: 30,
+    overseas: "china",
+    fleet: [{ type: "建造中の船", count: 24, avgAge: 0 }],
+    decisionMaker: {
+      name: "Mr. Zhang Wei",
+      role: "Vice President, Procurement",
+      note: "地元メーカーとの相見積もりが前提。価格と納期で比べ、技術力は差がつくときだけ見る。",
+    },
+    expectations: { price: 95, delivery: 85, fuel: 70, support: 55, record: 65 },
+  },
+  {
+    id: "eastchina",
+    name: "East China Bulk Lines",
+    region: "中国 / 上海",
+    segment: "外航船主（中国）",
+    relationship: 30,
+    overseas: "china",
+    fleet: [{ type: "ばら積み船", count: 30, avgAge: 11 }],
+    decisionMaker: {
+      name: "Ms. Chen Jing",
+      role: "Technical Director",
+      note: "燃費改善で運航コストを下げたいが、支払いには慎重。",
+    },
+    expectations: { price: 90, delivery: 70, fuel: 85, support: 60, record: 70 },
+  },
 ];
+
+/** もともとの取引先（第1部から登場する5社） */
+export const baseCustomers: Customer[] = customers.filter((c) => !c.overseas);
+
+/** 画面に出す船主（進出先の相手は、その国に進出した場合だけ） */
+export function visibleCustomers(state: GameState): Customer[] {
+  const overseas = state.continuation?.overseas;
+  return customers.filter((c) => !c.overseas || c.overseas === overseas);
+}
 
 /**
  * プレイ内容を反映した関係性スコア（0–100）。
@@ -276,10 +366,11 @@ export function customerDeals(
       turn === state.turn && !log
         ? extraRequestsFor(state, turn)
         : (log?.extraRequestIds ?? []).flatMap((id) => {
-            const found = findExtraRequest(state.mode, id);
+            const found = findExtraRequest(state, id);
             return found ? [found.request] : [];
           });
-    for (const r of [...getScenarioTurn(turn, state.mode).requests, ...extras]) {
+    const data = scenarioTurn(state, turn);
+    for (const r of [...data.requests, ...(data.sideRequests ?? []), ...extras]) {
       if (r.owner !== customer.name) continue;
       const proposal =
         state.proposalLog.find((p) => p.requestId === r.id) ?? null;

@@ -83,9 +83,15 @@ export function EmergencyDecision({
             <dt className="text-navy-500">年利</dt>
             <dd className="tabular text-right font-bold text-navy-900">
               {ratePct(offer.rate)}
-              {offer.penaltyRate > 0 ? (
+              {offer.penaltyRate > 0 || (offer.discountRate ?? 0) > 0 ? (
                 <span className="block text-[11px] font-normal text-navy-400">
-                  信頼度による {ratePct(offer.baseRate)} + 2回目の上乗せ {ratePct(offer.penaltyRate)}
+                  信頼度による {ratePct(offer.baseRate)}
+                  {offer.penaltyRate > 0
+                    ? ` + 2回目の上乗せ ${ratePct(offer.penaltyRate)}`
+                    : ""}
+                  {(offer.discountRate ?? 0) > 0
+                    ? ` − 企業規模による引き下げ ${ratePct(offer.discountRate ?? 0)}`
+                    : ""}
                 </span>
               ) : null}
             </dd>

@@ -15,11 +15,15 @@ import {
   type B2bMetrics,
 } from "@/lib/b2bMetrics";
 import {
-  S_RANK_MIN_PRIMARY_HIT,
   buildFinalReport,
+  type FinalReportData,
   type Grade,
   type LoanSummary,
 } from "@/lib/finalReport";
+import {
+  canContinue,
+  continuationLockedByDeficit,
+} from "@/lib/continuation";
 import { company } from "@/lib/mock-data";
 import type { YearReview, YearVerdict } from "@/lib/yearlyReview";
 import { modeConfigs } from "@/lib/modes";
@@ -35,7 +39,7 @@ const gradeTone: Record<Grade, string> = {
 
 /** 最終ターン終了後に表示する総合フィードバック（リザルト）ダッシュボード */
 export function FinalReport() {
-  const { state, modeConfig, startGame } = useGame();
+  const { state, modeConfig, startGame, startContinuation } = useGame();
   const { money, moneySigned } = useMoney();
   const router = useRouter();
 
@@ -46,6 +50,8 @@ export function FinalReport() {
     router.push("/dashboard");
   };
   const otherMode: GameMode = state.mode === "intro" ? "advanced" : "intro";
+  const partTwo = report.fromTurn > 1;
+  const baseLabel = partTwo ? "基準資金" : "初期資金";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -53,14 +59,17 @@ export function FinalReport() {
       <Card>
         <div className="bg-navy-900 px-6 py-8 text-white sm:px-8">
           <p className="text-[10px] font-semibold tracking-widest text-navy-400">
-            FINAL REPORT — {modeConfig.label} ·{" "}
+            FINAL REPORT — {modeConfig.label}
+            {partTwo ? " 第2部（6〜10年目）" : ""} ·{" "}
             {!report.bankrupt
-              ? `${report.yearsPlayed}年間のシミュレーション終了`
+              ? partTwo
+                ? "危機からの立て直し 5年間の終了"
+                : `${report.yearsPlayed}年間のシミュレーション終了`
               : report.endReason === "insolvent"
-                ? `${report.yearsPlayed}年目の返済後に債務超過`
+                ? `${state.turn}年目の返済後に債務超過`
                 : report.endReason === "declined"
-                  ? `${report.yearsPlayed}年目で自主倒産`
-                  : `${report.yearsPlayed}年目で倒産`}
+                  ? `${state.turn}年目で自主倒産`
+                  : `${state.turn}年目で倒産`}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-5">
             <span
@@ -115,7 +124,7 @@ export function FinalReport() {
                 report.fundsDelta >= 0 ? "text-emerald-600" : "text-rose-600"
               }`}
             >
-              初期資金比 {moneySigned(report.fundsDelta)}
+              {baseLabel}比 {moneySigned(report.fundsDelta)}
             </p>
           </div>
           <div className="bg-white px-5 py-4">
@@ -153,11 +162,38 @@ export function FinalReport() {
               <span className="text-xs font-medium text-navy-400">%</span>
             </p>
             <p className="mt-0.5 text-[11px] text-navy-400">
-              S評価には{Math.round(S_RANK_MIN_PRIMARY_HIT * 100)}%以上が必要
+              S評価には{Math.round(report.sRank.hitRate * 100)}%以上が必要
             </p>
           </div>
         </div>
       </Card>
+
+      {/* 継続プレイ（6〜10年目）への案内 */}
+      {canContinue(state) ? (
+        <Card>
+          <div className="flex flex-col gap-3 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-navy-900">
+                次の5年に挑戦する（6〜10年目）
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-navy-600">
+                黒字で5年間を終えたので、この会社のまま続きをプレイできます。6年目の初めに、工場の設備故障と舶用市場の大不況が同時にやってきます。今の資金（{money(state.availableFunds)}
+                ）が「基準資金」になり、危機からどこまで立て直せるかを評価します。
+              </p>
+            </div>
+            <Button size="lg" className="shrink-0" onClick={startContinuation}>
+              次の5年に挑戦する
+              <Icon name="arrowRight" className="h-4 w-4" />
+            </Button>
+          </div>
+        </Card>
+      ) : continuationLockedByDeficit(state) ? (
+        <p className="rounded-lg border border-navy-200/70 bg-white px-4 py-3 text-[13px] text-navy-600">
+          黒字で終えると、続きの5年（6〜10年目）に挑戦できます。
+        </p>
+      ) : null}
+
+      {partTwo ? <PartTwoSection report={report} /> : null}
 
       {report.loanSummary ? (
         <LoanSummarySection summary={report.loanSummary} />
@@ -723,5 +759,102 @@ function LoanSummarySection({ summary }: { summary: LoanSummary }) {
         </p>
       </CardBody>
     </Card>
+  );
+}
+
+const starText = (n: 1 | 2 | 3) => "★".repeat(n) + "☆".repeat(3 - n);
+
+/** 継続プレイ：第1部の成績・危機対応力・10年間の推移 */
+function PartTwoSection({ report }: { report: FinalReportData }) {
+  const { money } = useMoney();
+  const history = report.history ?? [];
+  const maxFunds = Math.max(1, ...history.map((h) => Math.abs(h.funds)));
+
+  return (
+    <>
+      {report.crisisStars ? (
+        <Card>
+          <CardHeader
+            title="危機対応力"
+            description="工場停止と大不況にどう向き合ったか（参考表示・評価には含みません）"
+            icon={<Icon name="shield" className="h-5 w-5" />}
+          />
+          <CardBody>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              {report.crisisStars.map((s) => (
+                <div
+                  key={s.label}
+                  className="rounded-lg border border-navy-200/70 bg-navy-50/60 px-3.5 py-3"
+                >
+                  <p className="text-[12px] font-bold text-navy-900">{s.label}</p>
+                  <p
+                    className="mt-1 text-xl tracking-widest text-amber-500"
+                    aria-label={`星${s.stars}つ`}
+                  >
+                    {starText(s.stars)}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-navy-500">
+                    {s.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader
+          title="10年間の推移"
+          description="年末の資金と信頼度。6年目からが第2部（危機からの立て直し）です"
+          icon={<Icon name="trendUp" className="h-5 w-5" />}
+        />
+        <CardBody>
+          {report.partOne ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-navy-50 px-3.5 py-2.5 text-[12px] text-navy-600">
+              <span className="font-bold text-navy-900">第1部（1〜5年目）の評価</span>
+              <span
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-black ${gradeTone[report.partOne.grade]}`}
+              >
+                {report.partOne.grade}
+              </span>
+              <span>最終資金 {money(report.partOne.finalFunds)}</span>
+              <span>・信頼度 {report.partOne.finalTrust}</span>
+              <span>
+                ・第1優先的中率 {Math.round(report.partOne.primaryHitRate * 100)}%
+              </span>
+            </div>
+          ) : null}
+          <ul className="space-y-1.5">
+            {history.map((h) => (
+              <li
+                key={h.turn}
+                className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 text-[12px]"
+              >
+                <span
+                  className={`font-semibold ${h.turn >= 6 ? "text-navy-900" : "text-navy-400"}`}
+                >
+                  {h.turn}年目
+                </span>
+                <span className="h-2 overflow-hidden rounded-full bg-navy-100">
+                  <span
+                    className={`block h-full rounded-full ${
+                      h.funds < 0 ? "bg-rose-500" : h.turn >= 6 ? "bg-sea-500" : "bg-navy-300"
+                    }`}
+                    style={{ width: `${Math.max(2, (Math.abs(h.funds) / maxFunds) * 100)}%` }}
+                  />
+                </span>
+                <span className="tabular text-right text-navy-600">
+                  {money(h.funds)} · 信頼度 {h.trust}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-navy-400">
+            基準資金（6年目の開始時）：{money(report.initialFunds)}
+          </p>
+        </CardBody>
+      </Card>
+    </>
   );
 }

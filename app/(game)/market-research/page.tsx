@@ -9,7 +9,7 @@ import { useMoney } from "@/components/game/SettingsProvider";
 import {
   isAvailable,
   researchCategories,
-  researchReports,
+  reportsFor,
   researchSpendInTurn,
   hasActiveReport,
   researchPrice,
@@ -33,6 +33,8 @@ export default function MarketResearchPage() {
     isLocked,
   } = useGame();
   const committedSpend = state.availableFunds - spendable;
+  // 進出先のレポートは、継続プレイでその国に進出した場合だけ並べる
+  const researchReports = useMemo(() => reportsFor(state), [state]);
   const { money } = useMoney();
 
   const purchasedTurnById = useMemo(

@@ -62,10 +62,10 @@ export function channelForPriority(priority: string): MarketingChannelId {
 }
 
 /** そのチャネルが裏付けになる評価軸 */
-export function axisForChannel(channel: MarketingChannelId): FitAxisId {
+export function axisForChannel(channel: MarketingChannelId): FitAxisId | undefined {
   return (Object.keys(axisChannel) as FitAxisId[]).find(
     (axis) => axisChannel[axis] === channel,
-  )!;
+  );
 }
 
 /** そのチャネルが裏付けになる、船主要求の重視項目の例（予算画面のヒント用） */
@@ -93,7 +93,7 @@ export function channelShare(
   channel: MarketingChannelId,
 ): number {
   const total = planTotal(plan);
-  return total > 0 ? plan[channel] / total : 0;
+  return total > 0 ? (plan[channel] ?? 0) / total : 0;
 }
 
 /** 配分比が閾値以上か（浮動小数の誤差を避けるため整数で比較する） */
@@ -102,7 +102,7 @@ function meetsShare(
   channel: MarketingChannelId,
   minShare: number,
 ): boolean {
-  const amount = plan[channel];
+  const amount = plan[channel] ?? 0;
   if (amount <= 0) return false;
   return amount * 1000 >= planTotal(plan) * Math.round(minShare * 1000);
 }
@@ -117,7 +117,7 @@ export function additionalSpendNeeded(
   minShare: number,
   minSpend: number,
 ): number {
-  const s = plan[channel];
+  const s = plan[channel] ?? 0;
   const total = planTotal(plan);
   const byShare =
     minShare >= 1 ? Infinity : Math.max(0, (minShare * total - s) / (1 - minShare));
@@ -133,7 +133,24 @@ export type SynergyRule = {
   minShare: number;
   /** 受注に必要な、対応チャネルへの最低投資額（USD。0 = 条件なし） */
   minSpend: number;
+  /**
+   * チャネルごとに配分比の条件を上書きする（継続プレイ：海外に進出しなかった場合の
+   * 「価格」の訴求など、競合の値下げで条件が厳しくなる施策）。
+   */
+  channelMinShare?: Partial<Record<MarketingChannelId, number>>;
 };
+
+/** 配分比の条件の読み方（0.25 → 「4分の1」、1/3 → 「3分の1」） */
+export function shareLabel(minShare: number): string {
+  if (Math.abs(minShare - 1 / 3) < 0.001) return "3分の1";
+  if (Math.abs(minShare - 0.25) < 0.001) return "4分の1";
+  return `${Math.round(minShare * 100)}%`;
+}
+
+/** そのチャネルに適用される配分比の条件 */
+export function minShareFor(rule: SynergyRule, channel: MarketingChannelId): number {
+  return rule.channelMinShare?.[channel] ?? rule.minShare;
+}
 
 export type SynergyResult = {
   /** 提案で選んだ訴求ポイントに対応する評価軸 */
@@ -159,8 +176,9 @@ export type SynergyResult = {
    * - match：配分比・投資額の条件を満たした
    * - lowShare：対応チャネルの配分比が閾値に届かない（訴求の裏付けが弱い）
    * - underinvested：配分比は足りているが、投資額が最低条件に届かない（実践編）
+   * - noPartner：進出先の案件で、現地パートナーへの投資が足りない（継続プレイ）
    */
-  reason: "match" | "lowShare" | "underinvested";
+  reason: "match" | "lowShare" | "underinvested" | "noPartner";
   /** 受注できたか */
   won: boolean;
 };
@@ -176,10 +194,11 @@ export function evaluateSynergy(
 ): SynergyResult {
   const axis = axisForPriority(focusPriority);
   const requiredChannel = axisChannel[axis];
-  const requiredChannelSpend = plan[requiredChannel];
+  const requiredChannelSpend = plan[requiredChannel] ?? 0;
   const priorityRank = priorities.indexOf(focusPriority);
+  const minShare = minShareFor(rule, requiredChannel);
 
-  const reason = !meetsShare(plan, requiredChannel, rule.minShare)
+  const reason = !meetsShare(plan, requiredChannel, minShare)
     ? "lowShare"
     : requiredChannelSpend < rule.minSpend
       ? "underinvested"
@@ -191,13 +210,13 @@ export function evaluateSynergy(
     requiredChannel,
     requiredChannelSpend,
     requiredChannelShare: channelShare(plan, requiredChannel),
-    minShare: rule.minShare,
+    minShare,
     minSpend: rule.minSpend,
     priorityRank,
     rewardRate: priorityRewardRate(priorityRank),
     shortfall: won
       ? 0
-      : additionalSpendNeeded(plan, requiredChannel, rule.minShare, rule.minSpend),
+      : additionalSpendNeeded(plan, requiredChannel, minShare, rule.minSpend),
     reason,
     won,
   };
@@ -223,13 +242,12 @@ export function backingStatus(
   channel: MarketingChannelId,
   rule: SynergyRule,
 ): BackingStatus {
-  const amount = plan[channel];
+  const amount = plan[channel] ?? 0;
   const others = planTotal(plan) - amount;
+  const minShare = minShareFor(rule, channel);
   // s / (others + s) ≥ q を満たす最小の s（刻み単位に切り上げ）
   const byShare =
-    rule.minShare >= 1
-      ? Infinity
-      : (rule.minShare * others) / (1 - rule.minShare);
+    minShare >= 1 ? Infinity : (minShare * others) / (1 - minShare);
   const lineAmount = Math.max(
     BUDGET_STEP,
     rule.minSpend,
@@ -237,7 +255,7 @@ export function backingStatus(
   );
   const qualifies =
     amount > 0 &&
-    meetsShare(plan, channel, rule.minShare) &&
+    meetsShare(plan, channel, minShare) &&
     amount >= rule.minSpend;
   return {
     qualifies,
@@ -245,7 +263,7 @@ export function backingStatus(
       ? "match"
       : amount <= 0
         ? "none"
-        : !meetsShare(plan, channel, rule.minShare)
+        : !meetsShare(plan, channel, minShare)
           ? "lowShare"
           : "underinvested",
     lineAmount,
@@ -261,6 +279,8 @@ export function qualifyingChannels(
   return marketingChannels
     .map((c) => c.id)
     .filter(
-      (id) => meetsShare(plan, id, rule.minShare) && plan[id] >= rule.minSpend,
+      (id) =>
+        meetsShare(plan, id, minShareFor(rule, id)) &&
+        (plan[id] ?? 0) >= rule.minSpend,
     );
 }

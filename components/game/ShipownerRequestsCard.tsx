@@ -50,16 +50,31 @@ export function ShipownerRequestsCard({
                       {req.owner}
                     </h3>
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    {req.extra ? (
+                    {req.tag ? (
+                      <Badge tone={req.declineOnly ? "negative" : "info"}>{req.tag}</Badge>
+                    ) : req.extra ? (
                       <Badge tone="positive">追加案件</Badge>
                     ) : null}
                   </div>
                   <p className="mt-0.5 text-[11px] text-navy-400">
                     {req.region}
                   </p>
-                  {req.extra ? (
+                  {req.tag === "回復期の優先案件" ? (
+                    <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                      不況の間も関係を保ってきた船主からの優先案件です。回答しなくてもペナルティはありません（期限切れ）。
+                    </p>
+                  ) : req.extra ? (
                     <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
                       前年の見込み引き合いから生まれた商談です。回答しなくてもペナルティはありません（期限切れ）。
+                    </p>
+                  ) : null}
+                  {req.declineOnly ? (
+                    <p className="mt-1 text-[11px] leading-relaxed text-rose-700">
+                      {req.declineOnly}
+                    </p>
+                  ) : req.requiresLocalPartner ? (
+                    <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                      受注には、訴求ポイントの裏付けに加えて「現地パートナー」への投資（$100,000 以上）が必要です。
                     </p>
                   ) : null}
                 </div>

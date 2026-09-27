@@ -1,6 +1,7 @@
 "use client";
 
 import { LoanStatusCard } from "@/components/game/LoanStatusCard";
+import { ContinuationStatusCard } from "@/components/game/ContinuationStatusCard";
 import { MarketNewsCard } from "@/components/game/MarketNewsCard";
 import { ShipownerRequestsCard } from "@/components/game/ShipownerRequestsCard";
 import { useGame } from "@/components/game/GameProvider";
@@ -33,6 +34,9 @@ export default function DashboardPage() {
           {company.playerRole} — {turnData.headline}
         </p>
       </div>
+
+      {/* 継続プレイ（6〜10年目）の会社と市場の状況 */}
+      <ContinuationStatusCard />
 
       {/* 緊急融資を受けているときだけ表示 */}
       <LoanStatusCard />

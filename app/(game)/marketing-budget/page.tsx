@@ -11,13 +11,19 @@ import { Icon } from "@/components/ui/Icon";
 import { useMoney } from "@/components/game/SettingsProvider";
 import {
   BUDGET_STEP,
+  LOCAL_PARTNER_MIN_SPEND,
   MAX_TRUST_GAIN_PER_TURN,
   emptyPlan,
   marketingChannels,
   simulateMarketing,
 } from "@/lib/marketing";
 import { extraRequestCount } from "@/lib/extraRequests";
-import { backingStatus, channelShare } from "@/lib/synergy";
+import {
+  RELATIONSHIP_KEEP_SPEND,
+  hasLocalPartner,
+  synergyRuleAt,
+} from "@/lib/continuation";
+import { backingStatus, channelShare, shareLabel } from "@/lib/synergy";
 import type { MarketingChannelId } from "@/lib/types";
 
 export default function MarketingBudgetPage() {
@@ -37,24 +43,47 @@ export default function MarketingBudgetPage() {
 
   const plan = state.marketingPlan;
   const outcome = useMemo(() => simulateMarketing(plan), [plan]);
+  // 継続プレイの不況の年は訴求ラインが上がる（年ごとの受注条件）
+  const rule = useMemo(() => synergyRuleAt(state), [state]);
+  // 現地パートナーは、継続プレイで海外に進出した場合だけ使える
+  const channels = useMemo(
+    () =>
+      marketingChannels.filter((c) => !c.overseasOnly || hasLocalPartner(state)),
+    [state],
+  );
   const statuses = useMemo(() => {
-    const rule = {
-      minShare: modeConfig.minSynergyShare,
-      minSpend: modeConfig.minSynergySpend,
-    };
     return Object.fromEntries(
-      marketingChannels.map((c) => [c.id, backingStatus(plan, c.id, rule)]),
+      marketingChannels.map((c) => {
+        if (c.overseasOnly) {
+          const amount = plan[c.id] ?? 0;
+          const qualifies = amount >= LOCAL_PARTNER_MIN_SPEND;
+          return [
+            c.id,
+            {
+              qualifies,
+              reason: qualifies ? "match" : amount > 0 ? "underinvested" : "none",
+              lineAmount: LOCAL_PARTNER_MIN_SPEND,
+              needed: Math.max(0, LOCAL_PARTNER_MIN_SPEND - amount),
+            },
+          ];
+        }
+        return [c.id, backingStatus(plan, c.id, rule)];
+      }),
     ) as Record<MarketingChannelId, ReturnType<typeof backingStatus>>;
-  }, [plan, modeConfig]);
+  }, [plan, rule]);
   // 訴求ラインに届いている施策がひとつもない（このままではどの提案も受注できない）
-  const noBacking = !marketingChannels.some((c) => statuses[c.id].qualifies);
-  const ruleText = `配分全体の4分の1（${Math.round(
-    modeConfig.minSynergyShare * 100,
-  )}%）以上${
-    modeConfig.minSynergySpend > 0
-      ? `かつ ${money(modeConfig.minSynergySpend)} 以上`
+  const noBacking = !channels.some(
+    (c) => !c.overseasOnly && statuses[c.id].qualifies,
+  );
+  const ruleText = `配分全体の${shareLabel(rule.minShare)}（${Math.round(
+    rule.minShare * 100,
+  )}%）以上${rule.minSpend > 0 ? `かつ ${money(rule.minSpend)} 以上` : ""}${
+    rule.channelMinShare?.expo !== undefined
+      ? "（国際海事展示会は、海外で安く作る競合に押されて3分の1以上）"
       : ""
   }`;
+  // 継続プレイの不況の年（6〜8年目）は、営業訪問で関係を保てる
+  const recession = state.continuation !== null && state.turn >= 6 && state.turn <= 8;
 
   const thresholds = modeConfig.extraRequestLeadThresholds;
   const nextExtras = extraRequestCount(state.mode, outcome.leads);
@@ -212,17 +241,27 @@ export default function MarketingBudgetPage() {
               }
             />
             <ul className="divide-y divide-navy-100">
-              {marketingChannels.map((channel) => (
+              {channels.map((channel) => (
                 <ChannelBudgetRow
                   key={channel.id}
                   channel={channel}
-                  amount={plan[channel.id]}
+                  amount={plan[channel.id] ?? 0}
                   effect={outcome.byChannel[channel.id]}
                   share={channelShare(plan, channel.id)}
                   status={statuses[channel.id]}
-                  minSpend={modeConfig.minSynergySpend}
+                  minSpend={rule.minSpend}
                   disabled={isPlanLocked}
                   onChange={(amount) => setAmount(channel.id, amount)}
+                  shareText={shareLabel(
+                    rule.channelMinShare?.[channel.id] ?? rule.minShare,
+                  )}
+                  note={
+                    recession && channel.id === "fieldSales"
+                      ? (plan.fieldSales ?? 0) >= RELATIONSHIP_KEEP_SPEND
+                        ? `関係維持ライン ${money(RELATIONSHIP_KEEP_SPEND)} に到達：不況でも既存船主との関係を保てます`
+                        : `関係維持ライン ${money(RELATIONSHIP_KEEP_SPEND)}：ここに届かないと、不況ですべての既存船主との関係性が 5 下がります`
+                      : undefined
+                  }
                 />
               ))}
             </ul>
@@ -298,9 +337,9 @@ export default function MarketingBudgetPage() {
                   </p>
                   <ul className="mt-2 space-y-2">
                     {marketingChannels
-                      .filter((channel) => plan[channel.id] > 0)
+                      .filter((channel) => (plan[channel.id] ?? 0) > 0)
                       .map((channel) => {
-                        const share = (plan[channel.id] / outcome.spend) * 100;
+                        const share = ((plan[channel.id] ?? 0) / outcome.spend) * 100;
                         return (
                           <li key={channel.id}>
                             <div className="flex items-baseline justify-between gap-2 text-[12px]">

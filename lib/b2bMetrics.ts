@@ -1,4 +1,4 @@
-import { scenarioTurns } from "./modes";
+import { scenarioTurn } from "./continuation";
 import { findExtraRequest } from "./extraRequests";
 import type { GameState } from "./types";
 
@@ -61,35 +61,43 @@ function roiOf(revenue: number, investment: number): number | null {
   return (revenue * ASSUMED_GROSS_MARGIN - investment) / investment;
 }
 
-export function buildB2bMetrics(state: GameState): B2bMetrics {
+export function buildB2bMetrics(state: GameState, fromTurn = 1): B2bMetrics {
   // 提案結果（要求 ID）を、どのターンのいくらの案件だったかに引き当てる
-  const requestIndex = new Map(
-    scenarioTurns(state.mode).flatMap((t) =>
-      t.requests.map((r) => [r.id, { turn: t.turn, budget: r.budget }] as const),
-    ),
-  );
+  const requestIndex = new Map<string, { turn: number; budget: number }>();
+  for (let turn = 1; turn <= state.turn; turn++) {
+    const data = scenarioTurn(state, turn);
+    for (const r of [...data.requests, ...(data.sideRequests ?? [])]) {
+      requestIndex.set(r.id, { turn, budget: r.budget });
+    }
+  }
   // 辞退は提案していないため、提案件数・受注率には含めない
   const deals = Object.entries(state.dealOutcomes).flatMap(([id, outcome]) => {
-    const extra = findExtraRequest(state.mode, id);
+    const extra = findExtraRequest(state, id);
     const req =
       requestIndex.get(id) ??
       (extra ? { turn: extra.turn, budget: extra.request.budget } : undefined);
-    return req && outcome !== "declined"
+    return req && req.turn >= fromTurn && outcome !== "declined"
       ? [{ ...req, won: outcome === "won" }]
       : [];
   });
+  const marketingHistory = state.marketingHistory.filter(
+    (h) => h.turn >= fromTurn,
+  );
+  const researchPurchases = state.researchPurchases.filter(
+    (p) => p.turn >= fromTurn,
+  );
 
   const turnsPlayed = Array.from(
     new Set([
-      ...state.marketingHistory.map((h) => h.turn),
-      ...state.researchPurchases.map((p) => p.turn),
+      ...marketingHistory.map((h) => h.turn),
+      ...researchPurchases.map((p) => p.turn),
       ...deals.map((d) => d.turn),
     ]),
   ).sort((a, b) => a - b);
 
   const byTurn: TurnMetrics[] = turnsPlayed.map((turn) => {
-    const history = state.marketingHistory.filter((h) => h.turn === turn);
-    const research = state.researchPurchases.filter((p) => p.turn === turn);
+    const history = marketingHistory.filter((h) => h.turn === turn);
+    const research = researchPurchases.filter((p) => p.turn === turn);
     const turnDeals = deals.filter((d) => d.turn === turn);
     const won = turnDeals.filter((d) => d.won);
     const investment =
@@ -107,16 +115,10 @@ export function buildB2bMetrics(state: GameState): B2bMetrics {
     };
   });
 
-  const marketingSpend = state.marketingHistory.reduce(
-    (sum, h) => sum + h.spend,
-    0,
-  );
-  const researchSpend = state.researchPurchases.reduce(
-    (sum, p) => sum + p.cost,
-    0,
-  );
+  const marketingSpend = marketingHistory.reduce((sum, h) => sum + h.spend, 0);
+  const researchSpend = researchPurchases.reduce((sum, p) => sum + p.cost, 0);
   const totalInvestment = marketingSpend + researchSpend;
-  const leads = state.marketingHistory.reduce((sum, h) => sum + h.leads, 0);
+  const leads = marketingHistory.reduce((sum, h) => sum + h.leads, 0);
   const proposals = deals.length;
   const dealsWon = deals.filter((d) => d.won).length;
   const wonRevenue = deals

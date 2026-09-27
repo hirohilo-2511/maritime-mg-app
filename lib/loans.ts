@@ -1,4 +1,5 @@
-import { getModeConfig, loanBaseRate } from "./modes";
+import { loanBaseRate } from "./modes";
+import { loanConfigFor, loanRateDiscount, loansInScope } from "./continuation";
 import type { GameState, LoanRecord, PendingInsolvency } from "./types";
 
 /**
@@ -28,14 +29,14 @@ export function annualInterest(state: GameState): number {
 
 /** 残りの借入枠 */
 export function remainingCredit(state: GameState): number {
-  const { creditLimit } = getModeConfig(state.mode).emergencyLoan;
+  const { creditLimit } = loanConfigFor(state);
   return Math.max(0, creditLimit - outstandingDebt(state));
 }
 
 /** 残りの融資回数 */
 export function remainingLoanCount(state: GameState): number {
-  const { maxLoans } = getModeConfig(state.mode).emergencyLoan;
-  return Math.max(0, maxLoans - state.loans.length);
+  const { maxLoans } = loanConfigFor(state);
+  return Math.max(0, maxLoans - loansInScope(state).length);
 }
 
 /**
@@ -47,11 +48,12 @@ export function remainingLoanCount(state: GameState): number {
  * @param state 決算を反映した状態（資金がマイナス）
  */
 export function buildInsolvency(state: GameState): PendingInsolvency {
-  const cfg = getModeConfig(state.mode).emergencyLoan;
+  const cfg = loanConfigFor(state);
   const deficit = -state.availableFunds;
   const base = { turn: state.turn, deficit };
+  const taken = loansInScope(state).length;
 
-  if (state.loans.length >= cfg.maxLoans) {
+  if (taken >= cfg.maxLoans) {
     return { ...base, offer: null, denial: "countLimit" };
   }
   const room = remainingCredit(state);
@@ -59,10 +61,12 @@ export function buildInsolvency(state: GameState): PendingInsolvency {
     return { ...base, offer: null, denial: "creditLimit" };
   }
 
-  const number = state.loans.length + 1;
+  const number = taken + 1;
   const workingCapital = Math.min(cfg.workingCapital, room - deficit);
   const baseRate = loanBaseRate(state.trustScore);
   const penaltyRate = number > 1 ? cfg.repeatLoanPenaltyRate : 0;
+  // 継続プレイでは、企業規模に応じて金利が下がる（規模のメリット）
+  const discountRate = loanRateDiscount(state);
   return {
     ...base,
     offer: {
@@ -73,7 +77,10 @@ export function buildInsolvency(state: GameState): PendingInsolvency {
       baseRate,
       penaltyRate,
       // 浮動小数の誤差（0.11 + 0.05 など）を避けるため 0.1% 単位に丸める
-      rate: Math.round((baseRate + penaltyRate) * 1_000) / 1_000,
+      rate:
+        Math.round(Math.max(0.01, baseRate + penaltyRate - discountRate) * 1_000) /
+        1_000,
+      discountRate,
       trustAtBorrow: state.trustScore,
       workingCapitalReduced: workingCapital < cfg.workingCapital,
       trustPenalty: cfg.trustPenalty,

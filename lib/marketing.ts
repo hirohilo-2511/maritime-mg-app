@@ -19,7 +19,12 @@ export type MarketingChannel = {
   trustWeight: number;
   /** 主に接点を持てるセグメント */
   segments: string[];
+  /** 継続プレイで海外に進出した場合にだけ使える施策か */
+  overseasOnly?: boolean;
 };
+
+/** 進出先の案件の受注に必要な「現地パートナー」への最低投資額（USD） */
+export const LOCAL_PARTNER_MIN_SPEND = 100_000;
 
 /** スライダーの刻み（USD） */
 export const BUDGET_STEP = 10_000;
@@ -86,7 +91,24 @@ export const marketingChannels: MarketingChannel[] = [
     trustWeight: 0.3,
     segments: ["新興船主", "全地域"],
   },
+  {
+    id: "localPartner",
+    name: "現地パートナー",
+    description:
+      "進出先の代理店・合弁先と組んだ現地での営業と納入体制づくり。進出先の案件は、ここに一定額を投じていないと受注できない。",
+    icon: "anchor",
+    max: 300_000,
+    leadEfficiency: 4,
+    trustWeight: 0.5,
+    segments: ["進出先", "現地造船所"],
+    overseasOnly: true,
+  },
 ];
+
+/** 配分の金額（その施策の項目がない古い配分は 0 とみなす） */
+export function planAmount(plan: MarketingPlan, id: MarketingChannelId): number {
+  return plan[id] ?? 0;
+}
 
 export function getChannel(id: MarketingChannelId): MarketingChannel {
   const channel = marketingChannels.find((c) => c.id === id);
@@ -104,7 +126,10 @@ export function emptyPlan(): MarketingPlan {
 
 /** 配分合計（USD） */
 export function planTotal(plan: MarketingPlan): number {
-  return marketingChannels.reduce((sum, channel) => sum + plan[channel.id], 0);
+  return marketingChannels.reduce(
+    (sum, channel) => sum + planAmount(plan, channel.id),
+    0,
+  );
 }
 
 /**
@@ -131,7 +156,7 @@ export function simulateMarketing(plan: MarketingPlan): MarketingOutcome {
   let rawTrust = 0;
 
   for (const channel of marketingChannels) {
-    const effect = simulateChannel(channel, plan[channel.id]);
+    const effect = simulateChannel(channel, planAmount(plan, channel.id));
     byChannel[channel.id] = effect;
     leads += effect.leads;
     rawTrust += effect.trustDelta;
@@ -155,9 +180,15 @@ export function simulateMarketing(plan: MarketingPlan): MarketingOutcome {
  */
 export function evenSplit(budget: number): MarketingPlan {
   const per =
-    Math.floor(budget / marketingChannels.length / BUDGET_STEP) * BUDGET_STEP;
+    Math.floor(
+      budget /
+        marketingChannels.filter((c) => !c.overseasOnly).length /
+        BUDGET_STEP,
+    ) * BUDGET_STEP;
   return marketingChannels.reduce((plan, channel) => {
-    plan[channel.id] = Math.min(Math.max(per, 0), channel.max);
+    plan[channel.id] = channel.overseasOnly
+      ? 0
+      : Math.min(Math.max(per, 0), channel.max);
     return plan;
   }, {} as MarketingPlan);
 }

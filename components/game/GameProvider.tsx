@@ -15,9 +15,22 @@ import { initialGameState, turns } from "@/lib/mock-data";
 import {
   createInitialGameState,
   getModeConfig,
-  getScenarioTurn,
   type ModeConfig,
 } from "@/lib/modes";
+import {
+  CONTINUATION_START_TURN,
+  chooseCostCut as chooseCostCutFor,
+  chooseOverflow as chooseOverflowFor,
+  chooseOverseas as chooseOverseasFor,
+  chooseRepair as chooseRepairFor,
+  dismissNotice as dismissNoticeFor,
+  needsOverflowChoice,
+  pendingDecision,
+  scenarioTurn,
+  startContinuation as startContinuationFor,
+  type PendingDecision,
+} from "@/lib/continuation";
+import { buildFinalReport } from "@/lib/finalReport";
 import {
   acceptEmergencyLoan as acceptLoanFor,
   advanceGameState,
@@ -51,7 +64,10 @@ import type {
   LoanRecord,
   MarketingOutcome,
   MarketingPlan,
+  OverflowChoice,
+  OverseasChoice,
   PendingInsolvency,
+  RepairChoice,
   ShipownerRequest,
   TurnData,
   TurnSettlement,
@@ -173,6 +189,24 @@ type GameContextValue = {
   canCreateProposal: boolean;
   /** ターンを終了できるか（予算配分の確定が前提。未回答はペナルティ付きで可） */
   canEndTurn: boolean;
+  /** 継続プレイ：年初に済ませる必要がある判断（なければ null） */
+  decision: PendingDecision | null;
+  /** 継続プレイ：6年目の年末に「作りきれない分」の判断を待っているか */
+  overflowPrompt: boolean;
+  /** 継続プレイ（6〜10年目）を始める */
+  startContinuation: () => void;
+  /** 6年目の判断①：工場の直し方 */
+  chooseRepair: (choice: RepairChoice) => void;
+  /** 6年目の判断②：経費を削るか */
+  chooseCostCut: (cut: boolean) => void;
+  /** 7年目：進出先 */
+  chooseOverseas: (choice: OverseasChoice) => void;
+  /** 6年目の判断③：作りきれない分の扱いを決めて、年を締める */
+  chooseOverflow: (choice: OverflowChoice) => void;
+  /** 年末の判断をやめて、6年目の操作に戻る */
+  cancelOverflow: () => void;
+  /** 年初のお知らせを確認済みにする */
+  dismissNotice: (turn: number) => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -230,8 +264,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const isFinalTurn = state.turn >= state.totalTurns;
 
+  // 6年目の年末に「作りきれない分」の判断を待っているか
+  const [overflowPrompt, setOverflowPrompt] = useState(false);
+
   const advanceTurn = useCallback(() => {
     if (advancingRef.current) return;
+    const state = stateRef.current;
 
     // 終了済み（最終ターン完了・倒産）の場合は、フィードバック画面を開くだけ
     if (state.gameCompleted) {
@@ -239,6 +277,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!canEndTurnFor(state)) return;
+    // 継続プレイの6年目：生産能力を超えた受注があれば、決算の前に扱いを決める
+    if (needsOverflowChoice(state)) {
+      setOverflowPrompt(true);
+      return;
+    }
 
     advancingRef.current = true;
     setIsAdvancing(true);
@@ -285,7 +328,70 @@ export function GameProvider({ children }: { children: ReactNode }) {
       advancingRef.current = false;
       setIsAdvancing(false);
     }, SETTLEMENT_DELAY_MS);
-  }, [state, router]);
+  }, [router]);
+
+  /** 状態を更新する（操作の直後に advanceTurn などが最新の状態を読めるよう ref も更新する） */
+  const commitState = useCallback((next: GameState) => {
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  const startContinuation = useCallback(() => {
+    stopAdvancing();
+    setTurnResult(null);
+    const current = stateRef.current;
+    const report = buildFinalReport(current);
+    const next = startContinuationFor(current, {
+      grade: report.grade,
+      finalFunds: report.finalFunds,
+      finalTrust: report.finalTrust,
+      primaryHitRate: report.primaryHitRate,
+    });
+    if (next === current) return;
+    commitState(next);
+    router.push("/dashboard");
+  }, [commitState, router, stopAdvancing]);
+
+  const chooseRepair = useCallback(
+    (choice: RepairChoice) => {
+      if (advancingRef.current) return;
+      commitState(chooseRepairFor(stateRef.current, choice));
+    },
+    [commitState],
+  );
+
+  const chooseCostCut = useCallback(
+    (cut: boolean) => {
+      if (advancingRef.current) return;
+      commitState(chooseCostCutFor(stateRef.current, cut));
+    },
+    [commitState],
+  );
+
+  const chooseOverseas = useCallback(
+    (choice: OverseasChoice) => {
+      if (advancingRef.current) return;
+      commitState(chooseOverseasFor(stateRef.current, choice));
+    },
+    [commitState],
+  );
+
+  const chooseOverflow = useCallback(
+    (choice: OverflowChoice) => {
+      if (advancingRef.current) return;
+      commitState(chooseOverflowFor(stateRef.current, choice));
+      setOverflowPrompt(false);
+      advanceTurn();
+    },
+    [advanceTurn, commitState],
+  );
+
+  const cancelOverflow = useCallback(() => setOverflowPrompt(false), []);
+
+  const dismissNotice = useCallback(
+    (turn: number) => commitState(dismissNoticeFor(stateRef.current, turn)),
+    [commitState],
+  );
 
   const acceptEmergencyLoan = useCallback(() => {
     if (advancingRef.current) return;
@@ -332,11 +438,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const setTotalTurns = useCallback(
     (totalTurns: number) => {
-      updatePlayState((prev) => ({
-        ...prev,
-        // 進行済みのターンより短くはできず、データがある範囲に収める
-        totalTurns: Math.max(prev.turn, Math.min(totalTurns, MAX_TURNS)),
-      }));
+      updatePlayState((prev) =>
+        // 継続プレイ（6〜10年目）の年数は変えられない
+        prev.continuation
+          ? prev
+          : {
+              ...prev,
+              // 進行済みのターンより短くはできず、データがある範囲に収める
+              totalTurns: Math.max(prev.turn, Math.min(totalTurns, MAX_TURNS)),
+            },
+      );
     },
     [updatePlayState],
   );
@@ -363,7 +474,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       stopAdvancing();
       setTurnResult(null);
       setState((prev) => {
-        const target = Math.max(1, Math.min(turn, prev.totalTurns));
+        // 継続プレイ中は第2部（6年目以降）の中だけで移動する
+        const first = prev.continuation ? CONTINUATION_START_TURN : 1;
+        const target = Math.max(first, Math.min(turn, prev.totalTurns));
         if (target === prev.turn && !prev.gameCompleted) return prev;
         return {
           ...prev,
@@ -465,11 +578,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState(next);
   }, []);
 
+  const decision = pendingDecision(state);
+
   const modeConfig = getModeConfig(state.mode);
   // 本案件に、前年の見込み引き合いで届いた追加案件（実践編）を加える
   const turnData = useMemo(
     () => ({
-      ...getScenarioTurn(state.turn, state.mode),
+      ...scenarioTurn(state),
       requests: requestsForTurn(state),
     }),
     [state],
@@ -530,6 +645,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       unansweredPenalty: penalty,
       canCreateProposal,
       canEndTurn,
+      decision,
+      overflowPrompt,
+      startContinuation,
+      chooseRepair,
+      chooseCostCut,
+      chooseOverseas,
+      chooseOverflow,
+      cancelOverflow,
+      dismissNotice,
     }),
     [
       state,
@@ -567,6 +691,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       penalty,
       canCreateProposal,
       canEndTurn,
+      decision,
+      overflowPrompt,
+      startContinuation,
+      chooseRepair,
+      chooseCostCut,
+      chooseOverseas,
+      chooseOverflow,
+      cancelOverflow,
+      dismissNotice,
     ],
   );
 

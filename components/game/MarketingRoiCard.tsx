@@ -51,7 +51,7 @@ export function MarketingRoiCard({ history }: { history: MarketingRecord[] }) {
                     : null;
                 // 投資額が最も大きかったチャネル
                 const topChannel = marketingChannels
-                  .map((c) => ({ name: c.name, amount: record.plan[c.id] }))
+                  .map((c) => ({ name: c.name, amount: record.plan[c.id] ?? 0 }))
                   .sort((a, b) => b.amount - a.amount)[0];
 
                 return (

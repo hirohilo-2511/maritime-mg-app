@@ -53,7 +53,7 @@ export function ProposalAction({ request }: { request: ShipownerRequest }) {
           }
           aria-label={`${request.owner} への提案を作成`}
         >
-          提案を作成
+          {request.declineOnly ? "対応を決める" : "提案を作成"}
           <Icon name="arrowRight" className="h-3.5 w-3.5" />
         </Button>
         {!canCreateProposal ? (

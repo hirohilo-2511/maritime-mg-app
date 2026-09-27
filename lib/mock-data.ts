@@ -39,6 +39,7 @@ export const initialGameState: GameState = {
   relationshipDeltas: {},
   demoOperated: false,
   teams: ["Nihon Marine Solutions（自社）", "Team Orion", "Team Delta"],
+  continuation: null,
 };
 
 /** ターンごとのマーケットニュースと船主の要求 */

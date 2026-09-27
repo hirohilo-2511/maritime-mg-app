@@ -8,9 +8,13 @@ import { useGame } from "@/components/game/GameProvider";
 import { useMoney } from "@/components/game/SettingsProvider";
 import { displayedPriorities, fitAxes } from "@/lib/customers";
 import type { ProposalResolution } from "@/lib/game";
-import { getChannel } from "@/lib/marketing";
-import { synergyRuleFor } from "@/lib/modes";
-import { evaluateSynergy, priorityRewardRate } from "@/lib/synergy";
+import { LOCAL_PARTNER_MIN_SPEND, getChannel } from "@/lib/marketing";
+import { synergyRuleAt } from "@/lib/continuation";
+import {
+  evaluateSynergy,
+  priorityRewardRate,
+  shareLabel,
+} from "@/lib/synergy";
 import type { ShipownerRequest } from "@/lib/types";
 
 /**
@@ -35,9 +39,12 @@ export function ProposalModal({
   // 辞退は取り消せないため、もう一度確認する
   const [confirmingDecline, setConfirmingDecline] = useState(false);
   // 予算配分は確定済みのため、各訴求ポイントに裏付けがあるかはこの時点で決まっている
+  // （継続プレイの不況の年は訴求ラインが上がる）
+  const rule = synergyRuleAt(state);
   const backing = request.priorities.map((p) =>
-    evaluateSynergy(p, request.priorities, state.marketingPlan, synergyRuleFor(state.mode)),
+    evaluateSynergy(p, request.priorities, state.marketingPlan, rule),
   );
+  const partnerSpend = state.marketingPlan.localPartner ?? 0;
   // 実践編では、提案前に勝ち負けが分かる表示は出さない
   const showBacking = modeConfig.showProposalBacking;
   const anyBacked = backing.some((b) => b.won);
@@ -65,7 +72,7 @@ export function ProposalModal({
   };
 
   if (result) {
-    const { outcome, synergy, trustDelta, revenue, researchBonus } = result;
+    const { outcome, synergy, trustDelta, revenue, researchBonus, held } = result;
     const won = outcome === "won";
     const axisLabel =
       fitAxes.find((a) => a.id === synergy.axis)?.label ?? synergy.axis;
@@ -98,9 +105,11 @@ export function ProposalModal({
                 ? primary
                   ? "第1優先を射抜いた！満額受注"
                   : `受注（第${synergy.priorityRank + 1}優先への訴求）`
-                : synergy.reason === "underinvested"
-                  ? "投資不足：提案の裏付けが弱い"
-                  : "裏付け不足：対応する施策への配分が薄い"}
+                : synergy.reason === "noPartner"
+                  ? "現地の体制不足：現地パートナーへの投資が足りない"
+                  : synergy.reason === "underinvested"
+                    ? "投資不足：提案の裏付けが弱い"
+                    : "裏付け不足：対応する施策への配分が薄い"}
             </h2>
             <p className="mt-1 text-sm text-white/90">{request.owner}</p>
           </div>
@@ -118,7 +127,7 @@ export function ProposalModal({
                   <span className="tabular font-bold text-navy-900">
                     {pct(synergy.requiredChannelShare)}
                   </span>
-                  （条件は4分の1以上）という裏付けがあったため、
+                  （条件は{shareLabel(synergy.minShare)}以上）という裏付けがあったため、
                   {request.owner} は発注を決定しました。
                 </p>
                 {!primary ? (
@@ -131,6 +140,12 @@ export function ProposalModal({
                     ）に留まりました。
                   </p>
                 ) : null}
+                {held > 0 ? (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                    工場の停止で、この年に作れる量を超えました。受注額のうち{" "}
+                    {money(held)} はまだ入金されていません。年末（ターン終了時）に、作りきれない分の扱いを決めます。
+                  </p>
+                ) : null}
                 {researchBonus > 0 ? (
                   <p className="rounded-lg bg-sea-500/10 px-3 py-2 text-[12px] text-sea-600">
                     市場調査で {request.owner}{" "}
@@ -139,6 +154,13 @@ export function ProposalModal({
                   </p>
                 ) : null}
               </div>
+            ) : synergy.reason === "noPartner" ? (
+              <p className="text-[13px] leading-relaxed text-navy-700">
+                訴求ポイント「{focus}」の裏付けはありましたが、この案件は現地での納入・据え付けまで求められる進出先の案件です。
+                <span className="font-bold text-navy-900">現地パートナー</span>
+                への投資 {money(partnerSpend)} が必要額{" "}
+                {money(LOCAL_PARTNER_MIN_SPEND)} に届かず、現地の体制を示せませんでした。
+              </p>
             ) : synergy.reason === "underinvested" ? (
               <p className="text-[13px] leading-relaxed text-navy-700">
                 訴求ポイント「{focus}」（{axisLabel}）と
@@ -167,7 +189,7 @@ export function ProposalModal({
                 <span className="tabular font-bold text-navy-900">
                   {pct(synergy.requiredChannelShare)}
                 </span>
-                で、受注条件の4分の1（{pct(synergy.minShare)}）に届きませんでした
+                で、受注条件の{shareLabel(synergy.minShare)}（{pct(synergy.minShare)}）に届きませんでした
                 {synergy.requiredChannelSpend > 0
                   ? "。"
                   : "（今ターンは未配分）。"}
@@ -249,13 +271,38 @@ export function ProposalModal({
             <span className="text-[11px] text-navy-400">想定予算</span>
           </div>
 
+          {request.declineOnly ? (
+            <p className="mt-4 flex items-start gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-[12px] leading-relaxed text-rose-700">
+              <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {request.declineOnly}（辞退の信頼度 {modeConfig.declineTrustDelta}。回答しないと{" "}
+              {modeConfig.ignoreTrustDelta}）
+            </p>
+          ) : null}
+          {request.requiresLocalPartner ? (
+            <p
+              className={`mt-4 flex items-start gap-1.5 rounded-lg border px-3 py-2.5 text-[12px] leading-relaxed ${
+                partnerSpend >= LOCAL_PARTNER_MIN_SPEND
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              <Icon name="anchor" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              進出先の案件です。訴求ポイントの裏付けに加えて、現地パートナーに{" "}
+              {money(LOCAL_PARTNER_MIN_SPEND)} 以上の投資が必要です（今年の配分{" "}
+              {money(partnerSpend)}）。
+            </p>
+          ) : null}
+          <div className={request.declineOnly ? "hidden" : ""}>
           <p className="mt-4 text-[10px] font-semibold tracking-widest text-navy-400">
             提案の訴求ポイント
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-navy-500">
             重視される要素のうち、最も強く訴求するポイントを選んでください。
-            裏付けになる施策へ、今年の配分全体の4分の1（
-            {pct(modeConfig.minSynergyShare)}）以上を投じていれば受注できます。
+            裏付けになる施策へ、今年の配分全体の{shareLabel(rule.minShare)}（
+            {pct(rule.minShare)}）以上を投じていれば受注できます。
+            {rule.channelMinShare?.expo !== undefined
+              ? "ただし国際海事展示会（価格の裏付け）は3分の1以上が必要です。"
+              : ""}
             {shown.ordered
               ? "上にある要素ほど船主が重視しており、第1優先に応えると満額、それ以外は受注額が目減りします。"
               : "この船主の重視順はまだ分かりません（順不同で表示）。第1優先に応えると満額、それ以外は受注額が目減りします。関係する市場調査を買うと重視順が分かります。"}
@@ -265,7 +312,7 @@ export function ProposalModal({
               <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {modeConfig.label}：対応チャネルへの投資が
               {money(modeConfig.minSynergySpend)}
-              未満の場合、配分全体の4分の1を超えていても失注します（失注時の信頼度{" "}
+              未満の場合、配分全体の{shareLabel(rule.minShare)}を超えていても失注します（失注時の信頼度{" "}
               {modeConfig.loseTrustDelta}）。
             </p>
           )}
@@ -325,6 +372,7 @@ export function ProposalModal({
               );
             })}
           </div>
+          </div>
         </div>
 
         {confirmingDecline ? (
@@ -372,16 +420,18 @@ export function ProposalModal({
           >
             今期は辞退する
           </Button>
-          <Button
-            ref={confirmRef}
-            size="lg"
-            className="flex-1"
-            onClick={handleSubmit}
-            disabled={!focus}
-          >
-            この内容で提案を確定する
-            <Icon name="check" className="h-4 w-4" />
-          </Button>
+          {request.declineOnly ? null : (
+            <Button
+              ref={confirmRef}
+              size="lg"
+              className="flex-1"
+              onClick={handleSubmit}
+              disabled={!focus}
+            >
+              この内容で提案を確定する
+              <Icon name="check" className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

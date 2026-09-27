@@ -13,7 +13,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { JPY_PER_USD } from "@/lib/format";
 import { company } from "@/lib/mock-data";
-import { researchReports } from "@/lib/research";
+import { reportsFor } from "@/lib/research";
 
 /** 設定項目 1 行 */
 function SettingRow({
@@ -107,6 +107,10 @@ export default function SettingsPage() {
   }
 
   const turnOptions = Array.from({ length: MAX_TURNS }, (_, i) => i + 1);
+  // 継続プレイ中のターン移動は、第2部（6〜10年目）の中だけ
+  const jumpOptions = state.continuation
+    ? Array.from({ length: 5 }, (_, i) => i + 6)
+    : turnOptions;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -151,7 +155,7 @@ export default function SettingsPage() {
               { label: "信頼度スコア", value: `${state.trustScore} / 100` },
               {
                 label: "購入済みレポート",
-                value: `${state.researchPurchases.length} / ${researchReports.length}`,
+                value: `${state.researchPurchases.length} / ${reportsFor(state).length}`,
               },
               {
                 label: "マーケティング予算",
@@ -185,9 +189,11 @@ export default function SettingsPage() {
           <SettingRow
             label="総ターン数"
             description={
-              state.gameCompleted
-                ? "ゲームが終了しているため変更できません（終了後に延長すると、同じ年の案件を二重に受注できてしまうため）。"
-                : `ターンデータは${MAX_TURNS}年分まで用意されています。進行済みのターンより短くはできません。`
+              state.continuation
+                ? "継続プレイ（6〜10年目）中は、総ターン数は10年で固定です。"
+                : state.gameCompleted
+                  ? "ゲームが終了しているため変更できません（終了後に延長すると、同じ年の案件を二重に受注できてしまうため）。"
+                  : `ターンデータは${MAX_TURNS}年分まで用意されています。進行済みのターンより短くはできません。`
             }
           >
             <Segmented
@@ -337,7 +343,7 @@ export default function SettingsPage() {
               ariaLabel="ターンの移動"
               value={state.turn}
               onChange={jumpToTurn}
-              options={turnOptions.map((n) => ({
+              options={jumpOptions.map((n) => ({
                 value: n,
                 label: `${n}年目`,
                 disabled: n > state.totalTurns,

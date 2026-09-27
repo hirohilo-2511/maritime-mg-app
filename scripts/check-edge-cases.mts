@@ -49,6 +49,24 @@ import {
   researchReports,
 } from "../lib/research";
 import { displayedPriorities, isPriorityOrderKnown } from "../lib/customers";
+import {
+  capacityCap,
+  canContinue,
+  chooseCostCut,
+  chooseOverflow,
+  chooseOverseas,
+  chooseRepair,
+  dismissNotice,
+  loanConfigFor,
+  needsOverflowChoice,
+  pendingDecision,
+  scenarioTurn,
+  shareOfBase,
+  startContinuation,
+  synergyRuleAt,
+} from "../lib/continuation";
+import { currentRelationship, visibleCustomers } from "../lib/customers";
+import { reportsFor } from "../lib/research";
 import type { GameState, MarketingPlan } from "../lib/types";
 
 let failures = 0;
@@ -613,7 +631,8 @@ section("市場調査：船主の理解につながる");
   check("すべてのレポートに関係する船主がいる", researchReports.every((r) => reportCustomerIds(r).length > 0));
   // 船主が初めて要求を出す年までに、関係するレポートを買える
   for (const c of customers) {
-    let firstTurn = 0;
+    // 進出先の相手は、継続プレイの8年目に初めて要求を出す
+    let firstTurn = c.overseas ? 8 : 0;
     for (let t = 1; t <= 5 && !firstTurn; t++) {
       if (getScenarioTurn(t, "advanced").requests.some((r) => r.owner === c.name)) firstTurn = t;
     }
@@ -733,6 +752,119 @@ section("予算は確定したらその年は変更できない");
   const r = advanceGameState(committed);
   check("翌年はまた変更できる", r.state.turn === 2 && canEditPlan(r.state));
   check("終了後は変更できない", !canEditPlan({ ...s0, gameCompleted: true }));
+}
+
+// ---------------------------------------------------------------------------
+section("継続プレイ（6〜10年目）");
+{
+  const partOne = { grade: "A" as const, finalFunds: 0, finalTrust: 90, primaryHitRate: 0.8 };
+  /** 実践編の5年目を完走した状態（資金だけ指定） */
+  const finished = (funds: number, mode: "intro" | "advanced" = "advanced"): GameState => {
+    const s = finalizeGame({
+      ...createInitialGameState(mode),
+      turn: 5,
+      totalTurns: 5,
+      marketingCommitted: true,
+    }).state;
+    return { ...s, availableFunds: funds, trustScore: 90 };
+  };
+  check("黒字で完走すれば継続できる", canContinue(finished(3_000_000)));
+  check("初期資金以下では継続できない", !canContinue(finished(400_000)));
+  check("導入編は継続できない", !canContinue(finished(3_000_000, "intro")));
+  check("倒産していれば継続できない", !canContinue({ ...finished(3_000_000), bankrupt: true, endReason: "insolvent" }));
+  check("継続できない状態では開始しない", startContinuation(finished(400_000), partOne).continuation === null);
+
+  const s6 = startContinuation(finished(3_000_000), partOne);
+  const cont = s6.continuation!;
+  check("6年目から始まる", s6.turn === 6 && s6.totalTurns === 10 && !s6.gameCompleted);
+  check("基準資金は開始時の資金", cont.baseFunds === 3_000_000);
+  check("$300万は大手（危機で信頼度 −7）", cont.size === "large" && s6.trustScore === 83, `${cont.size} ${s6.trustScore}`);
+  check("$800万以上は業界大手（−5）", startContinuation(finished(8_000_000), partOne).trustScore === 85);
+  check("$300万未満は中堅（−10）", startContinuation(finished(2_000_000), partOne).trustScore === 80);
+  check("年初の判断が済むまで予算を確定できない", pendingDecision(s6) === "crisis" && !canEditPlan(s6));
+  check("6年目の本案件は2件", scenarioTurn(s6).requests.length === 2);
+  check("受注額の下限は $250,000", scenarioTurn(s6).requests.every((r) => r.budget >= 250_000));
+  check("融資の枠は $40万と基準資金の50%の大きいほう", loanConfigFor(s6).creditLimit === 1_500_000);
+  check("小さい会社の融資の枠は $40万", loanConfigFor(startContinuation(finished(500_000), partOne)).creditLimit === 400_000);
+
+  const renewed = chooseRepair(s6, "renew");
+  check("設備更新の費用（30%）を支払う", renewed.availableFunds === 3_000_000 - shareOfBase(cont, 0.3));
+  check("修理は一度だけ選べる", chooseRepair(renewed, "patch") === renewed);
+  let y6 = chooseCostCut(renewed, false);
+  check("判断が済めば予算を確定できる", pendingDecision(y6) === null && canEditPlan(y6));
+  check("不況の年は訴求ラインが3分の1", Math.abs(synergyRuleAt(y6).minShare - 1 / 3) < 1e-9);
+
+  // 生産能力の枠：2件とも受注すると枠を超える
+  y6 = commit(y6, plan({ expo: 100_000, fieldSales: 100_000 }));
+  const [a, b] = scenarioTurn(y6).requests;
+  const fundsBefore = y6.availableFunds;
+  y6 = resolveProposal(y6, a.id, a.priorities[0])!.state;
+  y6 = resolveProposal(y6, b.id, b.priorities[0])!.state;
+  const won = a.budget + b.budget;
+  const cap = capacityCap(cont);
+  check("枠を超えた分はすぐには入金されない", y6.availableFunds === fundsBefore + Math.min(won, cap), `${y6.availableFunds - fundsBefore}`);
+  check("年末に作りきれない分の判断が必要", needsOverflowChoice(y6));
+  const outsourced = chooseOverflow(y6, "outsource");
+  const r7 = advanceGameState(outsourced);
+  check("判断のあとは決算できる", r7.state.turn === 7);
+  check(
+    "他社委託は超過分の60%を計上",
+    r7.settlement!.highlights.some((h) => h.includes("60%")),
+  );
+  const nordic = (st: GameState) => st.relationshipDeltas["Nordic Tanker AS"] ?? 0;
+  check("営業訪問 $100,000 で関係を保つ", nordic(r7.state) === nordic(y6));
+  const noVisit = advanceGameState(chooseOverflow(commit({ ...y6, marketingPlan: plan({ expo: 100_000 }) }, plan({ expo: 100_000 })), "outsource"));
+  check("営業訪問がないと不況で関係性 −5", nordic(noVisit.state) === nordic(y6) - 5);
+  const silent = advanceGameState(chooseOverflow(y6, "silent"));
+  check("黙って遅れると信頼度 −10", silent.state.trustScore < r7.state.trustScore);
+
+  // 7年目：進出先
+  let y7 = r7.state;
+  check("7年目は進出先を選ぶまで確定できない", pendingDecision(y7) === "overseas");
+  y7 = chooseOverseas(y7, "india");
+  check("進出の費用を支払う", y7.continuation!.specialSpend[7] === shareOfBase(cont, 0.2));
+  check("進出先の相手が顧客に加わる", visibleCustomers(y7).some((c) => c.overseas === "india") && !visibleCustomers(y7).some((c) => c.overseas === "china"));
+  check("進出先の調査が買える", reportsFor(y7).some((r) => r.overseas === "india"));
+
+  // 8年目：進出先の案件は現地パートナーが必要、海外造船所向け（中国）は辞退のみ
+  let y8: GameState = { ...commit({ ...y7, turn: 8 }, plan({ expo: 200_000, tradePress: 200_000 })), proposalsCompleted: [] };
+  const side = scenarioTurn(y8).sideRequests ?? [];
+  const india = side.find((r) => r.id.startsWith("os-in-"))!;
+  const yard = side.find((r) => r.id.startsWith("cy8"))!;
+  const noPartner = resolveProposal(y8, india.id, india.priorities[0])!;
+  check("現地パートナーがないと進出先の案件は失注", noPartner.outcome === "lost" && noPartner.synergy.reason === "noPartner");
+  check("拠点のない国の造船所向けは提案できない", yard.declineOnly !== undefined && resolveProposal(y8, yard.id, yard.priorities[0]) === null);
+  check("辞退はできる", declineRequest(y8, yard.id).dealOutcomes[yard.id] === "declined");
+  check("回答しない別枠の要求は未回答に数える", unansweredRequests(y8).some((r) => r.id === yard.id));
+  y8 = commit({ ...y8, marketingCommitted: false }, plan({ expo: 200_000, tradePress: 200_000, localPartner: 100_000 }));
+  check("現地パートナーがあれば受注", resolveProposal(y8, india.id, india.priorities[0])!.outcome === "won");
+
+  // 9年目に入るとき：関係性70以上の船主から優先案件（経費削減なら来ない）
+  const into9 = advanceGameState(y8).state;
+  check("9年目は優先案件のお知らせ", pendingDecision(into9) === "recoveryNotice");
+  const kept = into9.continuation!.keptOwners ?? [];
+  check(
+    "関係性70以上の既存船主を記録",
+    kept.every((n) => {
+      const c = customers.find((x) => x.name === n)!;
+      return currentRelationship(c, into9) >= 70;
+    }),
+  );
+  check("優先案件は最大3件", (into9.continuation!.recoveryOwners ?? []).length <= 3);
+  check("お知らせを閉じれば進める", pendingDecision(dismissNotice(into9, 9)) === null);
+  const cutInto9 = advanceGameState({ ...y8, continuation: { ...y8.continuation!, costCut: true } }).state;
+  check("経費を削ると優先案件は来ない", (cutInto9.continuation!.recoveryOwners ?? []).length === 0);
+  check("9年目の訴求ラインは4分の1", synergyRuleAt(into9).minShare === 0.25);
+  const noneY9 = { ...into9, continuation: { ...into9.continuation!, overseas: "none" as const } };
+  check("進出しないと展示会は3分の1のまま", Math.abs((synergyRuleAt(noneY9).channelMinShare?.expo ?? 0) - 1 / 3) < 1e-9);
+
+  // 最終レポート：基準資金に対する伸びで評価
+  const done = { ...into9, turn: 10, gameCompleted: true, endReason: "completed" as const, availableFunds: 4_500_000, trustScore: 95 };
+  const report = buildFinalReport(done);
+  check("第2部は基準資金で評価", report.initialFunds === 3_000_000 && report.fromTurn === 6);
+  check("第1部の成績が残る", report.partOne?.grade === "A");
+  check("危機対応力が出る", (report.crisisStars ?? []).length === 3);
+  check("年次レビューは6年目から", (report.yearlyReview ?? []).every((y) => y.turn >= 6));
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);
