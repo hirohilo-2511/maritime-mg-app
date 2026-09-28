@@ -197,16 +197,30 @@ export function canContinue(state: GameState): boolean {
   );
 }
 
-/** 5年目を完走したが、赤字のため継続できない（案内だけ出す） */
-export function continuationLockedByDeficit(state: GameState): boolean {
-  return (
-    state.mode === "advanced" &&
-    state.continuation === null &&
-    state.gameCompleted &&
-    state.turn === CONTINUATION_START_TURN - 1 &&
-    !canContinue(state) &&
-    !state.demoOperated
-  );
+/**
+ * 実践編を終えたのに継続プレイに進めない理由（最終レポートに出す）。
+ * 進める場合・対象外（導入編・継続プレイ中）の場合は null。
+ */
+export function continuationBlockReason(state: GameState): string | null {
+  if (
+    state.mode !== "advanced" ||
+    state.continuation !== null ||
+    !state.gameCompleted ||
+    canContinue(state)
+  ) {
+    return null;
+  }
+  const initial = getModeConfig(state.mode).initialFunds.toLocaleString("en-US");
+  if (state.bankrupt) {
+    return "倒産・債務超過で終わったため、続きの5年（6〜10年目）には進めません。融資を返した後の資金が初期資金を上回るように5年間を終えると、続きに挑戦できます。";
+  }
+  if (state.demoOperated) {
+    return "プレイ中に設定画面の「ターンの移動」（デモ用の操作）を使ったため、続きの5年（6〜10年目）には進めません。ターンを移動せずに5年目まで遊ぶと、続きに挑戦できます。";
+  }
+  if (state.turn !== CONTINUATION_START_TURN - 1) {
+    return "総ターン数を5年以外に設定して遊んだため、続きの5年（6〜10年目）には進めません。総ターン数5年で最後まで遊ぶと、続きに挑戦できます。";
+  }
+  return `黒字で終えると、続きの5年（6〜10年目）に挑戦できます（条件：融資を返した後の最終資金が初期資金 $${initial} を上回ること）。`;
 }
 
 export type PendingDecision = "crisis" | "overseas" | "recoveryNotice";

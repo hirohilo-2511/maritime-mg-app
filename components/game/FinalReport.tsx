@@ -22,7 +22,7 @@ import {
 } from "@/lib/finalReport";
 import {
   canContinue,
-  continuationLockedByDeficit,
+  continuationBlockReason,
 } from "@/lib/continuation";
 import { company } from "@/lib/mock-data";
 import type { YearReview, YearVerdict } from "@/lib/yearlyReview";
@@ -187,9 +187,9 @@ export function FinalReport() {
             </Button>
           </div>
         </Card>
-      ) : continuationLockedByDeficit(state) ? (
-        <p className="rounded-lg border border-navy-200/70 bg-white px-4 py-3 text-[13px] text-navy-600">
-          黒字で終えると、続きの5年（6〜10年目）に挑戦できます。
+      ) : continuationBlockReason(state) ? (
+        <p className="rounded-lg border border-navy-200/70 bg-white px-4 py-3 text-[13px] leading-relaxed text-navy-600">
+          {continuationBlockReason(state)}
         </p>
       ) : null}
 

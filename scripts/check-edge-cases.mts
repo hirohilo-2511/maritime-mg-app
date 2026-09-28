@@ -52,6 +52,7 @@ import { displayedPriorities, isPriorityOrderKnown } from "../lib/customers";
 import {
   capacityCap,
   canContinue,
+  continuationBlockReason,
   chooseCostCut,
   chooseOverflow,
   chooseOverseas,
@@ -773,6 +774,12 @@ section("継続プレイ（6〜10年目）");
   check("導入編は継続できない", !canContinue(finished(3_000_000, "intro")));
   check("倒産していれば継続できない", !canContinue({ ...finished(3_000_000), bankrupt: true, endReason: "insolvent" }));
   check("継続できない状態では開始しない", startContinuation(finished(400_000), partOne).continuation === null);
+  check("継続できるときは理由を出さない", continuationBlockReason(finished(3_000_000)) === null);
+  check("赤字の理由", continuationBlockReason(finished(400_000))?.includes("黒字で終える") === true);
+  check("デモ操作の理由", continuationBlockReason({ ...finished(3_000_000), demoOperated: true })?.includes("ターンの移動") === true);
+  check("倒産の理由", continuationBlockReason({ ...finished(3_000_000), bankrupt: true, endReason: "insolvent" })?.includes("倒産") === true);
+  check("総ターン数の理由", continuationBlockReason({ ...finished(3_000_000), turn: 4, totalTurns: 4 })?.includes("総ターン数") === true);
+  check("導入編は理由も出さない", continuationBlockReason(finished(3_000_000, "intro")) === null);
 
   const s6 = startContinuation(finished(3_000_000), partOne);
   const cont = s6.continuation!;
