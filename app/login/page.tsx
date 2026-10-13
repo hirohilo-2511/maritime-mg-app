@@ -58,7 +58,7 @@ export default function LoginPage() {
         🚢
       </span>
       <span>
-        <small>ゲームはこちら（登録・インストール不要）</small>
+        <small>ゲームはこちら（スマホでも PC でも OK・登録・インストール不要）</small>
         <b>{modeConfigs[mode].label}ではじめる</b>
       </span>
       <span className={s.goArrow} aria-hidden>

@@ -79,7 +79,7 @@ npx tsx scripts/sim-continuation.mts  # 継続プレイ（6〜10年目）のバ�
 
 - **導入編では、見込み引き合い件数はゲーム結果に影響しません。** CPL などの指標表示にのみ使われています（実践編では翌年の追加案件の数に影響します）。
 - **受注額は全額が資金に入ります。** そのため好調なプレイでは資金が初期の数十倍まで伸び、評価では資金比を 3 倍で頭打ちにして調整しています（B2B 指標は粗利率 30% を仮定して算出）。
-- 最新の取扱説明書は `maritime_mg_manual_v5.1_player.pdf`（プレイヤー向け・ポップ版）と `maritime_mg_manual_v5_facilitator.pdf`（ファシリテーター向け）です。元の HTML は `docs/manual/` にあり、Edge / Chrome の「PDF に印刷」で作り直せます。`maritime_mg_manual_v3.pdf` 以前は古い内容です。
+- 最新の取扱説明書は `maritime_b2b_manual_v5.2_player.pdf`（プレイヤー向け・ポップ版）と `maritime_b2b_manual_v5.1_facilitator.pdf`（ファシリテーター向け。10章に継続プレイ）です。元の HTML は `docs/manual/`（`player_v5.2.html`・`facilitator_v5.1.html`）にあり、Edge / Chrome の「PDF に印刷」で作り直せます。`maritime_mg_manual_*.pdf` は旧版です。
 - ゲームの状態はブラウザのメモリ上にのみ保持され、ページを再読み込みすると初期化されます。
 
 ---
