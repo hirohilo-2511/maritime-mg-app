@@ -609,6 +609,59 @@
   white-space: nowrap;
 }
 
+/* 実践編の先（6年目〜）の予告 */
+.secretHint {
+  margin-top: 6px !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #7c2d12;
+}
+
+.secret {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-top: 24px;
+  background: linear-gradient(160deg, #1e1b4b, #4c1d95 55%, #be185d);
+  color: #fff;
+  border: 2.5px solid var(--navy);
+  border-radius: 22px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.secretLock {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px dashed rgba(253, 224, 71, 0.8);
+}
+
+.secret small {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  color: var(--sun);
+}
+
+.secret b {
+  display: block;
+  font-size: 19px;
+  margin: 2px 0 4px;
+}
+
+.secret p {
+  font-size: 13.5px;
+  opacity: 0.92;
+}
+
 /* 出航（最後のスタート） */
 .finale {
   position: relative;

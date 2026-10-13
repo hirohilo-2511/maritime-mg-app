@@ -162,6 +162,9 @@ export default function LoginPage() {
                     <span className={s.emoji}>{icon}</span> {modeConfigs[id].label}
                   </b>
                   <p>{text}</p>
+                  {id === "advanced" && (
+                    <p className={s.secretHint}>…ただし、5年で終わるとは限らない。</p>
+                  )}
                 </button>
               );
             })}
@@ -305,6 +308,21 @@ export default function LoginPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* 継続プレイ（6〜10年目）の予告。中身は明かさない */}
+          <div className={s.secret}>
+            <div className={s.secretLock} aria-hidden>
+              <span className={s.emoji}>🔒</span>
+            </div>
+            <div>
+              <small>SECRET VOYAGE</small>
+              <b>6年目の海図は、まだ白紙だ。</b>
+              <p>
+                実践編の5年間を、借金を返したうえで初期資金より増やして走り切った者だけに、
+                最終レポートで「次の航海」への扉が開くという。そこで待つのは追い風か、それとも嵐か——。
+              </p>
+            </div>
           </div>
         </section>
 
