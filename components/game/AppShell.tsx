@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <TopHeader title={title} onOpenSidebar={() => setMobileOpen(true)} />
         <main className="flex-1 px-4 py-6 lg:px-8">{children}</main>
         <footer className="border-t border-navy-200/70 px-4 py-4 text-center text-[11px] text-navy-400 lg:px-8">
-          Maritime MG プロトタイプ — 表示されているデータはすべてダミーです
+          Maritime B2B Simulator プロトタイプ — 表示されているデータはすべてダミーです
         </footer>
       </div>
 

@@ -4,9 +4,9 @@ import { GameProvider } from "@/components/game/GameProvider";
 import { SettingsProvider } from "@/components/game/SettingsProvider";
 
 export const metadata: Metadata = {
-  title: "Maritime MG — 海事経営シミュレーション",
+  title: "Maritime B2B Simulator — 海事経営シミュレーション",
   description:
-    "海事産業向け B2B 経営シミュレーションゲーム（Management Game）のプロトタイプ",
+    "海事産業向け B2B 経営シミュレーションゲームのプロトタイプ",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

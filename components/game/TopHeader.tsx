@@ -41,7 +41,7 @@ export function TopHeader({
           </button>
           <div>
             <p className="flex items-center gap-2 text-[10px] font-semibold tracking-widest text-navy-400">
-              MANAGEMENT GAME
+              BUSINESS SIMULATION
               <span
                 className={`rounded px-1.5 py-0.5 text-[9px] tracking-wider ${
                   state.mode === "advanced"

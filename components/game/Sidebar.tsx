@@ -182,7 +182,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <Icon name="anchor" className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-white">Maritime MG</p>
+          <p className="truncate text-sm font-bold text-white">Maritime B2B Simulator</p>
           <p className="truncate text-[11px] text-navy-400">
             経営シミュレーション
           </p>
@@ -345,7 +345,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-navy-300 transition-colors hover:bg-white/5 hover:text-white"
         >
           <Icon name="logout" className="h-5 w-5 text-navy-400" />
-          ログアウト
+          トップに戻る
         </Link>
       </div>
     </div>

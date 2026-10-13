@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** ルートはログイン画面へ（認証は未実装のためモック） */
+/** ルートはトップページ（ゲームの紹介とモード選択）へ */
 export default function Home() {
   redirect("/login");
 }
