@@ -2,51 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { Icon, type IconName } from "@/components/ui/Icon";
 import { useGame } from "@/components/game/GameProvider";
-import { gameModes, modeConfigs } from "@/lib/modes";
+import { modeConfigs } from "@/lib/modes";
 import type { GameMode } from "@/lib/types";
-
-const inputClass =
-  "w-full rounded-lg border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 " +
-  "placeholder:text-navy-300 transition-colors " +
-  "focus:border-sea-500 focus:outline-2 focus:outline-offset-0 focus:outline-sea-500/30";
-
-/** 1年の流れ（プレイヤーガイドの「1年はこの3ステップ」） */
-const yearSteps: { icon: IconName; title: string; body: string }[] = [
-  {
-    icon: "budget",
-    title: "予算を配る",
-    body: "5つのマーケティング施策に予算を配って「確定」。確定したら、その年は変えられません。",
-  },
-  {
-    icon: "presentation",
-    title: "船主に提案",
-    body: "船主の要求に、訴求ポイントを選んで提案。受注か失注かはその場で分かります。",
-  },
-  {
-    icon: "calendar",
-    title: "ターン終了",
-    body: "決算で資金と信頼度が変わり、次の年へ。これを5年間くり返します。",
-  },
-];
-
-/** 勝つためのコツ（プレイヤーガイドより） */
-const tips = [
-  {
-    title: "船主の「第1優先」に応える",
-    body: "重視項目は大事な順。第1優先で受注すると満額、2番目は80%、3番目は60%に目減りします。",
-  },
-  {
-    title: "力を入れる施策をしぼる",
-    body: "配分全体の「4分の1以上」を投じた施策だけが提案の裏付けになります。5つに均等だと、どれも届きません。",
-  },
-  {
-    title: "勝ち目がなければ「辞退」も作戦",
-    body: "放置（未回答）がいちばん信用を落とします。裏付けがない案件は辞退で傷を浅く。",
-  },
-];
+import { ManualArtDefs } from "./ManualArt";
+import s from "./landing.module.css";
 
 /** 航海図：要求と、裏付けになる施策 */
 const chart = [
@@ -57,222 +17,322 @@ const chart = [
   ["納期", "デジタル"],
 ];
 
+/** 導入編・実践編の違い（プレイヤーガイド3ページ目の表） */
+const compare = [
+  ["スタート", "資金 $500,000・信頼度 50", "資金 $400,000・信頼度 40（市況も厳しめ）"],
+  ["裏付けの条件", "配分全体の4分の1以上", "4分の1以上 ＋ $100,000 以上"],
+  ["船主の重視順", "最初から見える", "市場調査で分かる（有効2年）"],
+  ["提案画面のヒント", "裏付けの有無を表示", "表示なし（自分で見極める）"],
+  ["追加案件", "なし", "見込み引き合い 20件・35件で翌年に届く"],
+  ["最終レポート", "評価・スタイル分析・もしも", "＋ ROI・CPA、年次レビュー"],
+];
+
+function Arrow() {
+  return (
+    <div className={s.arrow}>
+      <svg width="26" height="26" viewBox="0 0 10 10" aria-hidden>
+        <path d="M2 1 L8 5 L2 9 Z" fill="#0b1f3a" />
+      </svg>
+    </div>
+  );
+}
+
 /**
- * トップページ。ゲームの紹介（プレイヤーガイドの要約）と、
- * 導入編・実践編を選んで始める入口を兼ねる。認証はない。
+ * トップページ。プレイヤーガイド Ver.5.1 と同じ見た目でゲームを紹介し、
+ * モードを選んで「アクセスはこちら」と同じ紺色のバーから始める。認証はない。
  */
 export default function LoginPage() {
   const router = useRouter();
   const { startGame } = useGame();
-  const [playerName, setPlayerNameInput] = useState("");
+  const [playerName, setPlayerName] = useState("");
+  const [mode, setMode] = useState<GameMode>("intro");
 
-  function handleStart(mode: GameMode) {
+  function handleStart() {
     startGame(mode, playerName);
     router.push("/dashboard");
   }
 
-  return (
-    <div className="min-h-screen bg-navy-50">
-      {/* ヘッダー */}
-      <header className="bg-navy-900">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-5 py-4">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sea-500/15 text-sea-400 ring-1 ring-sea-500/30">
-            <Icon name="anchor" className="h-6 w-6" />
-          </span>
-          <div>
-            <p className="text-base font-bold text-white">Maritime B2B Simulator</p>
-            <p className="text-[11px] tracking-wide text-navy-400">
-              BUSINESS SIMULATION PLATFORM
-            </p>
-          </div>
-        </div>
-      </header>
+  const goButton = (
+    <button type="button" className={s.go} onClick={handleStart}>
+      <span className={s.emoji} style={{ fontSize: 26 }} aria-hidden>
+        🚢
+      </span>
+      <span>
+        <small>ゲームはこちら（登録・インストール不要）</small>
+        <b>{modeConfigs[mode].label}ではじめる</b>
+      </span>
+      <span className={s.goArrow} aria-hidden>
+        ▶
+      </span>
+    </button>
+  );
 
-      {/* ヒーロー */}
-      <section className="relative overflow-hidden bg-navy-900 pb-16">
-        <div
-          aria-hidden
-          className="absolute -top-32 -right-32 h-96 w-96 rounded-full border border-white/5"
-        />
-        <div
-          aria-hidden
-          className="absolute top-1/3 right-12 h-64 w-64 rounded-full bg-sea-500/10 blur-3xl"
-        />
-        <div className="relative mx-auto max-w-5xl px-5 pt-10">
-          <h1 className="text-3xl leading-snug font-bold text-white sm:text-4xl">
-            5年で、
-            <span className="text-sea-400">海の信頼</span>
-            を勝ち取れ。
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-navy-300 sm:text-base">
-            あなたは船舶用機器メーカーの経営企画。限られた予算をマーケティング施策に配り、
-            世界の船主からの要求に提案して、5年間で資金と信頼度を伸ばす経営シミュレーションです。
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#start"
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-sea-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-sea-600"
-            >
-              ゲームをはじめる
-            </a>
-            <span className="inline-flex h-11 items-center text-xs text-navy-400">
-              登録・インストール不要。ブラウザだけで遊べます
+  return (
+    <div className={s.root}>
+      <ManualArtDefs />
+
+      {/* ===== 表紙 ===== */}
+      <section className={s.cover}>
+        <svg className={s.sun} width="120" height="120" viewBox="0 0 60 60" aria-hidden>
+          <circle cx="30" cy="30" r="14" fill="#fde047" stroke="#0b1f3a" strokeWidth="1" />
+          <g stroke="#f59e0b" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M30 10 v-5 M30 50 v5 M10 30 h-5 M50 30 h5 M16 16 l-3.5 -3.5 M44 44 l3.5 3.5 M44 16 l3.5 -3.5 M16 44 l-3.5 3.5" />
+          </g>
+        </svg>
+        <svg className={s.cloud} style={{ right: "22%", top: 150 }} width="128" height="64" viewBox="0 0 120 60" aria-hidden>
+          <use href="#cloud" width="100%" height="100%" />
+        </svg>
+        <svg className={s.cloud} style={{ right: "5%", top: 250 }} width="90" height="45" viewBox="0 0 120 60" aria-hidden>
+          <use href="#cloud" width="100%" height="100%" />
+        </svg>
+
+        <div className={s.wrap}>
+          <span className={s.ver}>経営シミュレーションゲーム</span>
+          <div className={s.title}>
+            <small>MARITIME B2B SIMULATOR</small>
+            <h1>
+              5年で、
+              <br />
+              <em>海の信頼</em>を
+              <br />
+              勝ち取れ！
+            </h1>
+            <span className={s.subtitle}>
+              <span className={s.emoji}>⚓</span> 船舶用機器メーカーの経営企画として、予算と提案で勝負！
             </span>
           </div>
-        </div>
-      </section>
 
-      <main className="mx-auto max-w-5xl space-y-12 px-5 py-12">
-        {/* 1年の流れ */}
-        <section>
-          <h2 className="text-xl font-bold text-navy-900">1年はこの3ステップ</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            {yearSteps.map((step, i) => (
-              <div
-                key={step.title}
-                className="rounded-xl border border-navy-200 bg-white p-5"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sea-500/10 text-sea-600">
-                  <Icon name={step.icon} className="h-5 w-5" />
-                </span>
-                <p className="mt-3 text-sm font-bold text-navy-900">
-                  {i + 1}. {step.title}
-                </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-navy-600">
-                  {step.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* コツと航海図 */}
-        <section className="grid gap-6 lg:grid-cols-5">
-          <div className="lg:col-span-3">
-            <h2 className="text-xl font-bold text-navy-900">勝つためのコツ</h2>
-            <ol className="mt-4 space-y-3">
-              {tips.map((tip, i) => (
-                <li
-                  key={tip.title}
-                  className="flex gap-3 rounded-xl border border-navy-200 bg-white p-4"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-bold text-white">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-navy-900">{tip.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-navy-600">
-                      {tip.body}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className="lg:col-span-2">
-            <h2 className="text-xl font-bold text-navy-900">航海図</h2>
-            <p className="mt-1 text-xs text-navy-500">
-              どの要求に、どの施策が効く？
-            </p>
-            <table className="mt-3 w-full overflow-hidden rounded-xl border border-navy-200 bg-white text-sm">
-              <thead>
-                <tr className="bg-navy-100 text-left text-xs text-navy-600">
-                  <th className="px-4 py-2 font-semibold">船主の要求</th>
-                  <th className="px-4 py-2 font-semibold">裏付けになる施策</th>
-                </tr>
-              </thead>
-              <tbody>
-                {chart.map(([need, measure]) => (
-                  <tr key={need} className="border-t border-navy-100">
-                    <td className="px-4 py-2.5 font-semibold text-navy-900">{need}</td>
-                    <td className="px-4 py-2.5 text-navy-700">{measure}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-3 rounded-lg bg-white px-4 py-3 text-xs leading-relaxed text-navy-600 ring-1 ring-navy-200">
-              <span className="font-bold text-navy-900">最高評価 S：</span>
-              信頼度 95 以上・最終資金が初期資金の 130% 以上・第1優先に応えた受注が 80% 以上。
-            </p>
-          </div>
-        </section>
-
-        {/* はじめる */}
-        <section id="start" className="scroll-mt-6">
-          <h2 className="text-xl font-bold text-navy-900">モードを選んで出航</h2>
-          <p className="mt-1 text-sm text-navy-500">
-            はじめてなら「導入編」。慣れたら「実践編」に挑戦してください。
-          </p>
-
-          <div className="mt-4 max-w-sm">
-            <label
-              htmlFor="playerName"
-              className="mb-1.5 block text-xs font-semibold text-navy-700"
-            >
-              プレイヤー名（任意・最終レポートに載ります）
-            </label>
-            <input
-              id="playerName"
-              name="playerName"
-              type="text"
-              autoComplete="nickname"
-              placeholder="山田 太郎"
-              value={playerName}
-              onChange={(e) => setPlayerNameInput(e.target.value)}
-              className={inputClass}
-            />
+          <div className={s.talk}>
+            <svg width="96" height="104" viewBox="0 0 120 130" aria-hidden>
+              <use href="#captain" width="100%" height="100%" />
+            </svg>
+            <div className={s.bubble}>
+              <small>カモメ船長</small>
+              ようこそ、新人くん！ 予算を配って、船主さんの心をつかむ5年間の航海だ。いっしょに行こう！
+            </div>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {gameModes.map((id) => {
-              const cfg = modeConfigs[id];
+          <div className={s.steps}>
+            <div className={s.step}>
+              <span className={s.n}>1</span>
+              <b>名前を入れる</b>
+              <p>入れなくても OK。最終レポートに名前が載るよ。</p>
+              <input
+                className={s.nameInput}
+                type="text"
+                aria-label="プレイヤー名"
+                autoComplete="nickname"
+                placeholder="山田 太郎"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+              />
+            </div>
+            <div className={s.step}>
+              <span className={s.n}>2</span>
+              <b>モードを選ぶ</b>
+              <p>はじめてなら「導入編」。慣れたら「実践編」に挑戦！下のカードをタップしてね。</p>
+            </div>
+            <div className={s.step}>
+              <span className={s.n}>3</span>
+              <b>出航！</b>
+              <p>紺色のバーを押せばスタート。登録やログインは不要だよ。</p>
+            </div>
+          </div>
+
+          <div className={s.modes} role="radiogroup" aria-label="モード">
+            {(
+              [
+                ["intro", "🌱", "var(--mint-l)", "資金 $500,000・信頼度 50。画面のヒントを見ながら、予算と提案の関係を体で覚えよう。"],
+                ["advanced", "🔥", "var(--sun-l)", "資金 $400,000・信頼度 40。市況は厳しく、顧客の本音は調べないと分からない本番モード。"],
+              ] as const
+            ).map(([id, icon, bg, text]) => {
+              const selected = mode === id;
               return (
-                <div
+                <button
                   key={id}
-                  className="flex flex-col rounded-xl border border-navy-200 bg-white p-5"
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={`${s.mode} ${selected ? s.modeSelected : ""}`}
+                  style={{ background: bg }}
+                  onClick={() => setMode(id)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-navy-900">{cfg.label}</span>
-                    <span className="ml-auto text-[10px] font-semibold tracking-widest text-navy-400">
-                      {cfg.tag}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs leading-relaxed text-navy-600">
-                    {cfg.description}
-                  </p>
-                  <ul className="mt-3 flex-1 space-y-1.5 rounded-lg bg-navy-50 px-3.5 py-3 text-xs leading-relaxed text-navy-600">
-                    {cfg.highlights.map((h) => (
-                      <li key={h} className="flex items-start gap-1.5">
-                        <Icon
-                          name="check"
-                          className="mt-0.5 h-3 w-3 shrink-0 text-sea-600"
-                        />
-                        {h}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    size="lg"
-                    className="mt-4 w-full"
-                    variant={id === "intro" ? "primary" : "secondary"}
-                    onClick={() => handleStart(id)}
-                  >
-                    {cfg.label}をはじめる
-                  </Button>
-                </div>
+                  {selected && <span className={s.check}>✓ 選択中</span>}
+                  <b>
+                    <span className={s.emoji}>{icon}</span> {modeConfigs[id].label}
+                  </b>
+                  <p>{text}</p>
+                </button>
               );
             })}
           </div>
 
-          <p className="mt-4 text-xs text-navy-500">
-            記録はブラウザの中だけに保存されます。プレイ中は再読み込みやタブを閉じるのを避けてください。
-          </p>
-        </section>
-      </main>
+          {goButton}
+        </div>
 
-      <footer className="border-t border-navy-200 py-6 text-center text-[11px] text-navy-400">
-        © 2026 Maritime B2B Simulator. 登場する企業・ニュースはすべて架空です。
-      </footer>
+        <div className={s.sea} aria-hidden>
+          <svg className={s.waveBack} viewBox="0 0 210 40" preserveAspectRatio="none">
+            <use href="#wave" x="0" y="4" width="210" height="36" fill="#38bdf8" />
+          </svg>
+          <svg className={s.ship} width="320" height="152" viewBox="0 0 400 190">
+            <use href="#ship" width="100%" height="100%" />
+          </svg>
+          <svg className={s.waveFront} viewBox="0 0 210 40" preserveAspectRatio="none">
+            <use href="#wave" x="-20" y="0" width="250" height="40" fill="#0284c7" />
+          </svg>
+        </div>
+      </section>
+
+      <div className={s.wrap}>
+        {/* ===== 1年のながれ・コツ ===== */}
+        <section className={s.section}>
+          <h2 className={s.h2}>
+            <span className={s.tag}>基本</span>1年はこの3ステップ
+          </h2>
+          <div className={s.talk}>
+            <svg width="72" height="78" viewBox="0 0 120 130" aria-hidden>
+              <use href="#captain" width="100%" height="100%" />
+            </svg>
+            <div className={s.bubble} style={{ marginBottom: 20 }}>
+              迷ったら左のサイドバーを見るんだ。「今やること」を教えてくれるぞ！
+            </div>
+          </div>
+          <div className={s.loop}>
+            <div className={s.card} style={{ background: "#e0f2fe" }}>
+              <div className={`${s.ic} ${s.emoji}`}>💰</div>
+              <b>① 予算を配る</b>
+              <p>5つの施策にスライダーで配って「確定」。確定したら、その年は変えられないよ。</p>
+            </div>
+            <Arrow />
+            <div className={s.card} style={{ background: "var(--grape-l)" }}>
+              <div className={`${s.ic} ${s.emoji}`}>🤝</div>
+              <b>② 船主に提案</b>
+              <p>重視される要素から「訴求ポイント」を1つ選ぶ。受注か失注か、その場で分かる！</p>
+            </div>
+            <Arrow />
+            <div className={s.card} style={{ background: "var(--coral-l)" }}>
+              <div className={`${s.ic} ${s.emoji}`}>📈</div>
+              <b>③ ターン終了</b>
+              <p>サイドバー左下のボタンで決算。資金と信頼度が変わって次の年へ。</p>
+            </div>
+          </div>
+
+          <h2 className={s.h2} style={{ fontSize: 22 }}>
+            <span className={s.emoji}>🏆</span> 勝つためのコツ 3つ
+          </h2>
+          <div className={s.tips}>
+            <div className={s.tip}>
+              <div className={s.no} style={{ background: "var(--coral)" }}>1</div>
+              <div>
+                <b>船主の「①第1優先」に応える</b>
+                <p>重視項目は大事な順。第1優先で受注すると満額、2番目は80%、3番目は60%に目減り。</p>
+              </div>
+            </div>
+            <div className={s.tip}>
+              <div className={s.no} style={{ background: "var(--sea)" }}>2</div>
+              <div>
+                <b>力を入れる施策をしぼる</b>
+                <p>配分全体の「4分の1以上」を投じた施策だけが、提案の裏付けになる。5つに均等だと、どれも届かない。スライダーの緑の目印が合図！</p>
+              </div>
+            </div>
+            <div className={s.tip}>
+              <div className={s.no} style={{ background: "var(--mint)" }}>3</div>
+              <div>
+                <b>勝ち目がなければ「辞退」も作戦</b>
+                <p>放置（未回答）がいちばん信用を落とす。裏付けがない案件は「今期は辞退する」で傷を浅く。</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={s.map}>
+            <h3>
+              <span className={s.emoji}>🗺️</span> 航海図：どの要求に、どの施策が効く？
+            </h3>
+            <div className={s.chips}>
+              {chart.map(([need, measure]) => (
+                <div key={need} className={s.chip}>
+                  <div className={s.chipW}>{need}</div>
+                  <div className={s.chipA}>▼</div>
+                  <div className={s.chipC}>{measure}</div>
+                </div>
+              ))}
+            </div>
+            <p className={s.note}>
+              予算画面の水色のタグにも「〇〇の裏付け」と書いてあるよ。規制適合・開発力は「燃費・技術」、保守契約・保証条件は「サポート」の仲間。
+            </p>
+          </div>
+        </section>
+
+        {/* ===== 評価とモードの違い ===== */}
+        <section className={s.section}>
+          <h2 className={s.h2}>
+            <span className={s.tag}>評価</span>めざせ最高評価「S」
+          </h2>
+          <div className={s.rank}>
+            <svg viewBox="0 0 100 100" width="96" height="96" aria-hidden>
+              <path d="M50 6 l12 26 28 3 -21 19 6 28 -25 -14 -25 14 6 -28 -21 -19 28 -3 z" fill="#fbbf24" stroke="#0b1f3a" strokeWidth="3.5" strokeLinejoin="round" />
+              <text x="50" y="66" textAnchor="middle" fontSize="34" fontWeight="900" fill="#0b1f3a" fontFamily="Segoe UI, sans-serif">
+                S
+              </text>
+            </svg>
+            <div>
+              <b>最高評価「S」の条件（3つとも達成）</b>
+              <ul>
+                <li>最終の信頼度が 95 以上</li>
+                <li>最終資金が初期資金の 130% 以上（融資は返済後で判定）</li>
+                <li>船主の第1優先に応えて受注した割合が 80% 以上</li>
+              </ul>
+              <p className={s.sub}>それ以外は資金と信頼度の合計で A〜C。倒産・最終年の債務超過は D。</p>
+            </div>
+          </div>
+
+          <div className={s.cmpWrap}>
+            <table className={s.cmp}>
+              <thead>
+                <tr>
+                  <th>ひと目でわかる違い</th>
+                  <th className={s.thIntro}>🌱 導入編</th>
+                  <th className={s.thAdv}>🔥 実践編</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compare.map(([label, intro, adv]) => (
+                  <tr key={label}>
+                    <td>{label}</td>
+                    <td>{intro}</td>
+                    <td>{adv}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* ===== 出航 ===== */}
+        <div className={s.finale}>
+          <div className={s.finaleTxt}>
+            <b>
+              <span className={s.emoji}>🚢</span> さあ、出航しよう！
+            </b>
+            <p>
+              読むのはここまで。まずは導入編で5年間を走り切ってみよう。
+              <br />
+              モードは表紙のカードで切り替えられるよ。
+            </p>
+          </div>
+          <div className={s.finaleGo}>{goButton}</div>
+          <svg viewBox="0 0 400 110" width="100%" height="140" preserveAspectRatio="xMidYMax meet" style={{ display: "block", marginTop: 8 }} aria-hidden>
+            <use href="#captain" x="24" y="10" width="72" height="78" />
+            <use href="#ship" x="150" y="12" width="190" height="90" />
+            <use href="#wave" x="-20" y="80" width="440" height="30" fill="#0284c7" />
+          </svg>
+        </div>
+
+        <div className={s.foot}>
+          <span>記録はブラウザの中だけに保存されます。プレイ中は再読み込みやタブを閉じるのを避けてください。</span>
+          <span>© 2026 Maritime B2B Simulator ／ 登場する企業・ニュースはすべて架空です</span>
+        </div>
+      </div>
     </div>
   );
 }
